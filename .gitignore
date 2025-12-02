@@ -1,0 +1,28 @@
+# Build
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+
+# IDE
+.idea/
+.vscode/
+*.user
+*.swp
+
+# Local docs (architecture internal)
+架构设计.md
+方案.md
+
+# Config with secrets
+config/config.local.json
+
+# Logs
+*.log
