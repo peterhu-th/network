@@ -36,7 +36,7 @@ make
 
 ---
 
-## 模块说明
+## 模块需求说明
 
 ### Core 模块（已实现）
 
@@ -78,131 +78,61 @@ class Result {
 
 ### Audio 模块（待开发）
 
-**职责：** 从传感器接收原始音频数据（TCP/UDP）
+**职责：** 负责连接数据源并产出标准化的音频帧。
+
+**功能需求：**
+1.  **多协议支持**: 需支持通过 TCP 或 UDP 接收原始 PCM 数据流（具体协议由配置决定）。
+2.  **数据封装**: 将接收到的字节流封装为 `radar::AudioFrame` 结构，包含正确的时间戳和音频参数（采样率、通道等）。
+3.  **断线重连**: 在连接断开时应具备自动重连机制。
+4.  **错误处理**: 能够识别网络超时或格式错误，并上报状态。
 
 **输入：** 传感器数据流
 **输出：** `AudioFrame`
-
-**需实现的接口：**
-
-```cpp
-class IAudioSource : public QObject {
-    Q_OBJECT
-public:
-    virtual bool open(const SourceConfig& config) = 0;
-    virtual void close() = 0;
-    virtual bool isOpen() const = 0;
-
-signals:
-    void frameReady(const AudioFrame& frame);
-    void errorOccurred(const QString& error);
-};
-```
-
-**交付物：**
-- IAudioSource.h - 接口定义
-- AudioReceiver.h/cpp - TCP/UDP实现
-- 单元测试
 
 ---
 
 ### Processing 模块（待开发）
 
-**职责：** 对音频信号进行筛选、过滤
+**职责：** 清洗数据，识别有效信号。
+
+**功能需求：**
+1.  **流水线设计**: 支持多种处理器串行工作（例如：先降噪，再进行静音检测）。
+2.  **可扩展性**: 需设计为易于添加新算法的架构。
+3.  **信号筛选**: 能够根据配置阈值判断音频帧是否包含有效信号（VAD - Voice Activity Detection）。
+4.  **元数据生成**: 计算并附加信号特征（如最大振幅、信噪比等）到 `ProcessedData` 结构中。
 
 **输入：** `AudioFrame`
 **输出：** `ProcessedData`
-
-**需实现的接口：**
-
-```cpp
-class IProcessor {
-public:
-    virtual QString name() const = 0;
-    virtual bool process(const AudioFrame& input, ProcessedData& output) = 0;
-};
-
-class ProcessingPipeline : public QObject {
-    Q_OBJECT
-public:
-    void addProcessor(std::shared_ptr<IProcessor> processor);
-    void process(const AudioFrame& frame);
-
-signals:
-    void completed(const ProcessedData& data);
-    void rejected(const AudioFrame& frame, const QString& reason);
-};
-```
-
-**交付物：**
-- IProcessor.h - 接口定义
-- ProcessingPipeline.h/cpp - 流水线管理
-- SignalFilter.h/cpp - 信号过滤
-- 单元测试
 
 ---
 
 ### Storage 模块（待开发）
 
-**职责：** 将处理后的数据存储到本地
+**职责：** 本地文件管理与存储。
+
+**功能需求：**
+1.  **格式规范**: 音频数据保存为标准 WAV 格式；元数据保存为同名 JSON 文件。
+2.  **目录结构**: 按日期分层存储，例如 `storage/YYYY/MM/DD/audio_<timestamp>.wav`。
+3.  **空间管理**: 需监控存储目录大小。当超过配置上限时，依据 FIFO（先进先出）原则自动清理旧文件。
+4.  **队列管理**: 提供接口查询“已保存但未上传”的文件列表。
 
 **输入：** `ProcessedData`
 **输出：** 文件路径
-
-**需实现的接口：**
-
-```cpp
-class IStorage {
-public:
-    virtual Result<QString> save(const ProcessedData& data) = 0;
-    virtual Result<ProcessedData> load(const QString& id) = 0;
-    virtual QStringList listPending() = 0;  // 待上传文件列表
-};
-```
-
-**存储格式：**
-```
-storage/
-└── YYYY/MM/DD/
-    ├── audio_<timestamp>.wav
-    └── audio_<timestamp>.json  # 元数据
-```
-
-**交付物：**
-- IStorage.h - 接口定义
-- StorageManager.h/cpp - 存储管理
-- AudioFileWriter.h/cpp - WAV文件写入
-- 单元测试
 
 ---
 
 ### Network 模块（待开发）
 
-**职责：** 与 Go Web API 通信，上传数据
+**职责：** 将本地数据同步至云端。
+
+**功能需求：**
+1.  **HTTPS 上传**: 将音频文件及其对应的元数据上传至指定 REST API。
+2.  **异步处理**: 上传过程不能阻塞主线程。
+3.  **可靠性**: 遇到网络波动需支持重试策略。
+4.  **状态反馈**: 需明确反馈上传成功、失败、超时等状态。
 
 **输入：** 文件路径 + 元数据
 **输出：** 上传状态
-
-**需实现的接口：**
-
-```cpp
-class ApiService : public QObject {
-    Q_OBJECT
-public:
-    void setBaseUrl(const QString& url);
-    QFuture<Result<QString>> uploadAudio(const QString& filePath,
-                                          const QVariantMap& metadata);
-signals:
-    void uploadCompleted(const QString& fileId, const QString& serverId);
-    void uploadFailed(const QString& fileId, const QString& error);
-};
-```
-
-**交付物：**
-- HttpClient.h/cpp - HTTPS客户端
-- ApiService.h/cpp - API封装
-- 重试机制
-- 单元测试
 
 ---
 
