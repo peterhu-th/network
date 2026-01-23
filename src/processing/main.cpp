@@ -1,51 +1,59 @@
-#include "radar_processing.h"
+#include "pipeline_manager.h"
+#include "denoise_processor.h"
+#include "vad_processor.h"
+#include "feature_extractor.h"
+#include "audio_module_api.h"
+
+#include <QtCore/QCoreApplication>
 #include <iostream>
+#include <thread>
 
-// 独立测试接口（不影响集成，可选择性编译）
-void testAudioProcessingPipeline() {
-    // 1. 构造测试音频帧（16bit、单声道、44100Hz）
-    radar::AudioFrame test_frame;
-    test_frame.timestamp = 1736677000000;
-    test_frame.sample_rate = 44100;
-    test_frame.channels = 1;
-    test_frame.bit_depth = 16;
+int main(int argc, char *argv[]) {
+    QCoreApplication a(argc, argv);
 
-    // 构造测试PCM数据（信号+噪声）
-    std::vector<int16_t> test_pcm;
-    for (int i = 0; i < 1024; ++i) {
-        test_pcm.push_back(static_cast<int16_t>(sin(i * 0.1) * 1000 + rand() % 100));
-    }
-
-    // 转换为char向量
-    test_frame.data.resize(test_pcm.size() * sizeof(int16_t));
-    memcpy(test_frame.data.data(), test_pcm.data(), test_frame.data.size());
-
-    // 2. 创建流水线并添加处理器
+    // 初始化处理流水线
     radar::PipelineManager pipeline;
     pipeline.addProcessor(std::make_unique<radar::DenoiseProcessor>());
     pipeline.addProcessor(std::make_unique<radar::VADProcessor>(800.0));
     pipeline.addProcessor(std::make_unique<radar::FeatureExtractor>());
 
-    // 3. 执行处理
-    auto result = pipeline.execute(test_frame);
+    std::cout << "音频处理模块启动，开始对接Audio模块..." << std::endl;
 
-    // 4. 输出结果
-    if (result.isOk()) {
-        auto processed_data = result.value();
-        std::cout << "处理成功！" << std::endl;
-        std::cout << "是否为有效信号：" << (processed_data.is_valid ? "是" : "否") << std::endl;
-        std::cout << "信号强度：" << processed_data.signal_strength << std::endl;
-        std::cout << "最大振幅：" << processed_data.features["max_amplitude"] << std::endl;
-        std::cout << "信噪比：" << processed_data.features["snr"] << " dB" << std::endl;
-    } else {
-        std::cerr << "处理失败：" << result.errorMsg()
-                  << "（错误码：" << static_cast<int>(result.errorCode()) << "）" << std::endl;
+    // 循环读取Audio模块数据并处理
+    int frameIndex = 0;
+    while (true) {
+        try {
+            // 调用Audio模块真实接口读取数据
+            radar::AudioFrame audioFrame = audio_module::readAudioFrame();
+            frameIndex++;
+
+            // 空数据校验
+            if (audioFrame.data.isEmpty()) {
+                std::cerr << "警告：第" << frameIndex << "帧数据为空，跳过处理" << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
+            }
+
+            // 执行流水线处理
+            auto processResult = pipeline.execute(audioFrame);
+
+            // 处理结果输出
+            if (processResult.isOk()) {
+                radar::ProcessedData result = processResult.value();
+                std::cout << "\n第 " << frameIndex << " 帧处理完成：" << std::endl;
+                std::cout << "  数据源：" << result.originalFrame.sourceId.toStdString() << std::endl;
+                std::cout << "  有效信号：" << (result.isValid ? "是" : "否") << std::endl;
+                std::cout << "  信号强度：" << result.signalStrength << std::endl;
+                std::cout << "  最大振幅：" << result.features["max_amplitude"].toInt() << std::endl;
+            } else {
+                std::cerr << "第" << frameIndex << "帧处理失败：" << processResult.errorMsg().toStdString() << std::endl;
+            }
+
+        } catch (const std::exception& e) {
+            std::cerr << "读取Audio模块数据异常：" << e.what() << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
     }
-}
 
-// 集成入口（供其他模块调用，无测试代码侵入）
-int main() {
-    // 若需测试，解开下面注释；集成时直接调用PipelineManager接口即可
-    // testAudioProcessingPipeline();
-    return 0;
+    return a.exec();
 }
