@@ -10,8 +10,8 @@ namespace radar {
         Result<ProcessedData> doProcess(const AudioFrame& input) override;
 
     private:
-        int16_t calculateMaxAmplitude(const AudioFrame& frame);
-        double calculateSNR(const AudioFrame& frame);
+        double calculateSNR(const std::vector<int16_t>& data);
+        int16_t calculateMaxAmplitude(const std::vector<int16_t>& data);
     };
 
 } // namespace radar

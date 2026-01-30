@@ -2,7 +2,6 @@
 #define DENOISE_PROCESSOR_H
 
 #include "radar_processor_base.h"
-#include <vector>
 
 namespace radar {
 
@@ -11,7 +10,7 @@ namespace radar {
         Result<ProcessedData> doProcess(const AudioFrame& input) override;
 
     private:
-        std::vector<int16_t> meanFilter(const std::vector<int16_t>& pcm_data);
+        std::vector<int16_t> meanFilter(const std::vector<int16_t>& data);
     };
 
 } // namespace radar
