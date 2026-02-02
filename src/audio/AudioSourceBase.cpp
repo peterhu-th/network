@@ -1,78 +1,39 @@
 #include "AudioSourceBase.h"
-#include <QMutexLocker>
+#include "../core/Config.h"
+#include <QDebug>
 
-namespace radar {
-
-AudioSourceBase::AudioSourceBase(QObject* parent)
-    : IAudioSource(parent)
-{
-}
-
-Result<void> AudioSourceBase::start()
-{
+namespace radar::audio {
+    AudioSourceBase::AudioSourceBase(QObject *parent):
+        IAudioSource(parent),
+        m_isRunning(false)
     {
-        QMutexLocker locker(&m_mutex);
-        if (m_running) {
-            return Result<void>::error("Audio source already running", ErrorCode::Success);
+        auto& config = radar::Config::instance();
+        auto configMap = config.audioConfig();
+        //若未读取成功则采用默认数值
+        m_sampleRate = configMap.value("sampleRate", 44100).toInt();
+        m_channels = configMap.value("channels", 1).toUInt();
+        m_sampleSize = configMap.value("bitsPerSample", 16).toUInt();
+        m_startTime = 0;
+    }
+
+    Result<void> AudioSourceBase::start() {
+        if (m_isRunning) {
+            return Result<void>::error("Already running!", ErrorCode::InvalidState);
         }
+        m_isRunning = true;
+        //获取当前时间，精确到毫秒（QDateTime库)
+        m_startTime = QDateTime::currentMSecsSinceEpoch();
+        return Result<void>::ok();
     }
 
-    auto result = doStart();
-    if (result.isOk()) {
-        QMutexLocker locker(&m_mutex);
-        m_running = true;
-        emit stateChanged(m_connected, m_running);
-    }
-    return result;
-}
-
-Result<void> AudioSourceBase::stop()
-{
-    {
-        QMutexLocker locker(&m_mutex);
-        if (!m_running) {
-            return Result<void>::ok();
+    Result<void> AudioSourceBase::stop() {
+        if (!m_isRunning) {
+            return Result<void>::error("Already stopped!", ErrorCode::InvalidState);
         }
+        //打印采样时长
+        uint64_t duration = getDuration();
+        qDebug() << "Audio sampling stopped. Total duration: " << duration << "ms" << Qt::endl;
+        m_isRunning = false;
+        return Result<void>::ok();
     }
-
-    auto result = doStop();
-    {
-        QMutexLocker locker(&m_mutex);
-        m_running = false;
-        emit stateChanged(m_connected, m_running);
-    }
-    return result;
-}
-
-bool AudioSourceBase::isConnected() const
-{
-    QMutexLocker locker(&m_mutex);
-    return m_connected;
-}
-
-bool AudioSourceBase::isRunning() const
-{
-    QMutexLocker locker(&m_mutex);
-    return m_running;
-}
-
-void AudioSourceBase::setConnected(bool connected)
-{
-    QMutexLocker locker(&m_mutex);
-    if (m_connected != connected) {
-        m_connected = connected;
-        emit stateChanged(m_connected, m_running);
-    }
-}
-
-void AudioSourceBase::emitFrame(const AudioFrame& frame)
-{
-    emit frameReady(frame);
-}
-
-void AudioSourceBase::emitError(const QString& error, ErrorCode code)
-{
-    emit errorOccurred(error, code);
-}
-
 }

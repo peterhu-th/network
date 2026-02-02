@@ -10,9 +10,9 @@ namespace radar {
 
 struct AudioFrame {
     int64_t timestamp = 0;
-    uint32_t sampleRate = 0;
-    uint16_t channels = 0;
-    uint16_t bitsPerSample = 0;
+    int sampleRate = 0;
+    int channels = 0;
+    int sampleSize = 0;
     QByteArray data;
     QString sourceId;
 };
@@ -33,8 +33,12 @@ struct SourceConfig {
 
 enum class ErrorCode {
     Success = 0,
-    AudioConnectionFailed = 1001,
-    AudioReadFailed = 1002,
+    AudioReadFailed = 1001, //暂时未使用
+    AudioDeviceNotFound = 1002,
+    AudioDeviceInitFailed = 1003,
+    InvalidState = 1004,
+    UnsupportedFormat = 1005,
+    UnknownSourceType = 1006,
     ProcessingFailed = 2001,
     StorageFull = 3001,
     FileWriteFailed = 3002,
