@@ -1,20 +1,19 @@
-#ifndef PROCESSING_AUDIO_PROCESSING_SERVICE_H
-#define PROCESSING_AUDIO_PROCESSING_SERVICE_H
+#ifndef PROCESSING_AUDIOPROCESSINGSERVICE_H
+#define PROCESSING_AUDIOPROCESSINGSERVICE_H
 
 #include "PipelineManager.h"
-#include "ProcessorFactory.h"
-#include "../core/types.h"
-#include <vector>
-#include <memory>
+// 核心类型头文件（修正路径）
+#include "../../src/core/types.h"
 
 namespace radar {
 
     class AudioProcessingService {
     public:
         AudioProcessingService();
-        explicit AudioProcessingService(std::vector<std::unique_ptr<Processor>> customProcessors);
-        static std::unique_ptr<AudioProcessingService> createCustomService(std::vector<std::unique_ptr<Processor>> customProcessors);
-        Result<ProcessedData> processAudioFrame(const AudioFrame& frame);
+        // 初始化默认流水线
+        void initDefaultPipeline();
+        // 处理音频帧
+        Result<ProcessedData> processAudio(const AudioFrame& frame);
 
     private:
         PipelineManager m_pipeline;
@@ -22,4 +21,4 @@ namespace radar {
 
 } // namespace radar
 
-#endif // PROCESSING_AUDIO_PROCESSING_SERVICE_H
+#endif // PROCESSING_AUDIOPROCESSINGSERVICE_H

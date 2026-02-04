@@ -1,25 +1,24 @@
 #include "../include/AudioProcessingService.h"
+#include "../include/ProcessorFactory.h"
 
 namespace radar {
 
     AudioProcessingService::AudioProcessingService() {
-        auto defaultProcessors = ProcessorFactory::createDefaultPipeline();
-        for (auto& p : defaultProcessors) {
-            m_pipeline.addProcessor(std::move(p));
-        }
+        initDefaultPipeline();
     }
 
-    AudioProcessingService::AudioProcessingService(std::vector<std::unique_ptr<Processor>> customProcessors) {
-        for (auto& p : customProcessors) {
-            m_pipeline.addProcessor(std::move(p));
-        }
+    void AudioProcessingService::initDefaultPipeline() {
+        // 创建默认处理器流水线
+        auto denoiser = std::make_unique<DenoiseProcessor>();
+        auto vad = std::make_unique<VADProcessor>(0.5f);
+        auto featureExtractor = std::make_unique<FeatureExtractor>();
+
+        m_pipeline.addProcessor(std::move(denoiser));
+        m_pipeline.addProcessor(std::move(vad));
+        m_pipeline.addProcessor(std::move(featureExtractor));
     }
 
-    std::unique_ptr<AudioProcessingService> AudioProcessingService::createCustomService(std::vector<std::unique_ptr<Processor>> customProcessors) {
-        return std::make_unique<AudioProcessingService>(std::move(customProcessors));
-    }
-
-    Result<ProcessedData> AudioProcessingService::processAudioFrame(const AudioFrame& frame) {
+    Result<ProcessedData> AudioProcessingService::processAudio(const AudioFrame& frame) {
         return m_pipeline.execute(frame);
     }
 
