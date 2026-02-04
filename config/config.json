@@ -1,5 +1,11 @@
 {
-    "audio": {},
+    "audio": {
+        "type": "system",
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "device": "default"
+    },
     "storage": {},
     "network": {}
 }
