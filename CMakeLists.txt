@@ -13,7 +13,7 @@ find_package(Qt5 REQUIRED COMPONENTS Core Network)
 # modules
 add_subdirectory(src/core)
 add_subdirectory(src/audio)         # TODO: enable after implementation
-# add_subdirectory(src/processing)  # TODO: enable after implementation
+add_subdirectory(src/processing)
 # add_subdirectory(src/storage)     # TODO: enable after implementation
 # add_subdirectory(src/network)     # TODO: enable after implementation
 add_subdirectory(tests)
@@ -25,7 +25,7 @@ add_executable(${PROJECT_NAME} src/main.cpp
 target_link_libraries(${PROJECT_NAME} PRIVATE
     core
     audio
-    # processing
+    processing_lib
     # storage
     # network
     Qt5::Core
