@@ -8,14 +8,14 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Qt5
-find_package(Qt5 REQUIRED COMPONENTS Core Network)
+find_package(Qt5 REQUIRED COMPONENTS Core Network Sql Test)
 
 # modules
 add_subdirectory(src/core)
-add_subdirectory(src/audio)         # TODO: enable after implementation
+add_subdirectory(src/audio)
 add_subdirectory(src/processing)
 # add_subdirectory(src/storage)     # TODO: enable after implementation
-# add_subdirectory(src/network)     # TODO: enable after implementation
+add_subdirectory(src/network)
 add_subdirectory(tests)
 
 # main executable
@@ -27,9 +27,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     audio
     processing_lib
     # storage
-    # network
+    network_lib
     Qt5::Core
     Qt5::Network
+    Qt5::Sql
 )
 
 # copy config

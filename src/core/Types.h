@@ -13,6 +13,7 @@ struct AudioFrame {
     int sampleRate = 0;
     int channels = 0;
     int sampleSize = 0;
+    int bitsPerSample = 16;
     QByteArray data;
     QString sourceId;
 };
