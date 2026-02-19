@@ -40,11 +40,23 @@ enum class ErrorCode {
     InvalidState = 1004,
     UnsupportedFormat = 1005,
     UnknownSourceType = 1006,
+
     ProcessingFailed = 2001,
+    
     StorageFull = 3001,
     FileWriteFailed = 3002,
-    UploadFailed = 4001,
-    NetworkTimeout = 4002,
+    
+    NetworkTimeout = 4001,
+    NetworkPortOccupied = 4002,
+    NetworkListenFailed = 4003,
+    DatabaseInitFailed = 4004,
+    DatabaseConnectionFailed = 4005,
+    InvalidConfig = 4006,
+    ConfigMissingField = 4007,
+    DatabaseQueryFailed = 4008,
+    NetworkFileIoFailed = 4009,
+    RecordNotFound = 4010,
+    HttpServerError = 4011
 };
 
 template<typename T>

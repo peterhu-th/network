@@ -19,6 +19,7 @@ public:
     QVariantMap audioConfig() const;
     QVariantMap storageConfig() const;
     QVariantMap networkConfig() const;
+    QVariantMap databaseConfig() const;
 
 private:
     Config() = default;

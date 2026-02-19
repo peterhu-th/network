@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Qt5
-find_package(Qt5 REQUIRED COMPONENTS Core Network Sql Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Network Sql)
 
 # modules
 add_subdirectory(src/core)
@@ -27,7 +27,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     audio
     processing_lib
     # storage
-    network_lib
+    network
     Qt5::Core
     Qt5::Network
     Qt5::Sql

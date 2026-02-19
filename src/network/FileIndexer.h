@@ -1,47 +1,34 @@
 #ifndef FILE_INDEXER_H
 #define FILE_INDEXER_H
 
+#include "Types.h"
 #include "DatabaseManager.h"
 #include <QObject>
 #include <QString>
 #include <QTimer>
 
-namespace radar {
-namespace network {
+namespace radar::network {
+    // 文件索引器：扫描指定目录下的 .wav 文件，并将元数据存入数据库
+    class FileIndexer : public QObject {
+        Q_OBJECT
+    public:
+        explicit FileIndexer(DatabaseManager* dbManager, QObject* parent = nullptr);
+        // 启动自动扫描
+        Result<void> start(const QString& rootPath, int intervalMs = 60000);
+        // 手动扫描
+        [[nodiscard]] Result<void> scan() const;
 
-/**
- * @brief 文件索引器
- * @details 扫描指定目录下的 .wav 文件，并将元数据存入数据库。
- */
-class FileIndexer : public QObject {
-    Q_OBJECT
-public:
-    explicit FileIndexer(DatabaseManager* dbManager, QObject* parent = nullptr);
+    private:
+        DatabaseManager* m_dbManager;
+        QString m_rootPath;
+        QTimer* m_timer;
 
-    /**
-     * @brief 启动索引服务
-     * @param rootPath 根目录路径
-     * @param intervalMs 扫描间隔（毫秒），0表示仅启动时扫描一次
-     */
-    void start(const QString& rootPath, int intervalMs = 60000);
-
-    /**
-     * @brief 手动执行一次扫描
-     */
-    void scan();
-
-private:
-    DatabaseManager* m_dbManager;
-    QString m_rootPath;
-    QTimer* m_timer;
-
-    void scanDirectory(const QString& path);
-    void processFile(const QString& filePath);
-    AudioRecord parseMetadata(const QString& wavPath);
-    QDateTime getGenerationTime(const QString& jsonPath, const QString& wavPath);
-};
-
-} // namespace network
-} // namespace radar
+        [[nodiscard]] Result<void> scanDirectory(const QString& path) const;
+        // 确认
+        [[nodiscard]] Result<void> processFile(const QString& filePath) const;
+        static AudioRecord parseMetadata(const QString& wavPath);
+        static QDateTime getGenerationTime(const QString& jsonPath, const QString& wavPath);
+    };
+}
 
 #endif // FILE_INDEXER_H

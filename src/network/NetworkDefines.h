@@ -1,34 +1,26 @@
 #ifndef NETWORK_DEFINES_H
 #define NETWORK_DEFINES_H
 
-#include <QString>
 #include <QDateTime>
 
-namespace radar {
-namespace network {
+namespace radar::network {
+    struct AudioRecord {
+        int64_t id = 0;             // 雪花算法ID
+        QString filePath;           // 文件绝对路径
+        QDateTime generationTime;   // 生成时间
+        int durationMs = 0;         // 音频长度
+        int64_t fileSize = 0;       // 文件大小(字节)
+        QDateTime createdAt;        // 记录创建时间
+    };
 
-/**
- * @brief 音频记录结构体
- */
-struct AudioRecord {
-    int64_t id;                 // 雪花算法ID
-    QString filePath;           // 文件绝对路径
-    QDateTime generationTime;   // 生成时间
-    int durationMs;             // 时长(毫秒)
-    int64_t fileSize;           // 文件大小(字节)
-    QDateTime createdAt;        // 记录创建时间
-};
-
-struct DatabaseConfig {
-    QString type = "QMYSQL";
-    QString host = "127.0.0.1";
-    int port = 3306;
-    QString dbName = "audio_radar";
-    QString username = "root";
-    QString password = "";
-};
-
-} // namespace network
-} // namespace radar
+    struct DatabaseConfig {
+        QString type = "Q_MYSQL";
+        QString host = "127.0.0.1";     // 指向本机
+        int port = 3306;                // MySQL 数据库的全球标准默认通信端口
+        QString dbName = "audio_radar";
+        QString username = "root";
+        QString password = "";
+    };
+}
 
 #endif // NETWORK_DEFINES_H

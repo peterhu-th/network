@@ -50,4 +50,8 @@ QVariantMap Config::networkConfig() const {
     return m_config.value("network").toMap();
 }
 
+QVariantMap Config::databaseConfig() const {
+    return m_config.value("database").toMap();
+}
+
 }
