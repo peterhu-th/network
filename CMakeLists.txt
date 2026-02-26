@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Qt5
-find_package(Qt5 REQUIRED COMPONENTS Core Network Sql)
+find_package(Qt5 REQUIRED COMPONENTS Core Network Sql Widgets)
 
 # modules
 add_subdirectory(src/core)
@@ -17,6 +17,8 @@ add_subdirectory(src/processing)
 # add_subdirectory(src/storage)     # TODO: enable after implementation
 add_subdirectory(src/network)
 add_subdirectory(tests)
+
+add_subdirectory(src/ui)
 
 # main executable
 add_executable(${PROJECT_NAME} src/main.cpp
@@ -28,9 +30,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     processing_lib
     # storage
     network
+    ui
     Qt5::Core
     Qt5::Network
     Qt5::Sql
+    Qt5::Widgets
 )
 
 # copy config

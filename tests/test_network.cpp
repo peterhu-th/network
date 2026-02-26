@@ -9,7 +9,7 @@
 #include <QDebug>
 #include <iostream>
 #include <QDateTime>
-#include "NetworkService.h"
+#include "../src/network/controller/AudioRecordController.h"
 
 // Simple assertion macro
 #define ASSERT_TRUE(cond) \
@@ -48,13 +48,13 @@ public:
         storageConfig["path"] = m_testDir;
         config["storage"] = storageConfig;
 
-        m_service = new radar::network::NetworkService(this);
-        auto initRes = m_service->init(config);
-        if (!initRes.isOk()) qCritical() << "Service init failed:" << initRes.errorMessage();
+        m_controller = new radar::network::controller::AudioRecordController(this);
+        auto initRes = m_controller->init(config);
+        if (!initRes.isOk()) qCritical() << "Controller init failed:" << initRes.errorMessage();
         ASSERT_TRUE(initRes.isOk());
 
-        auto startRes = m_service->start();
-        if (!startRes.isOk()) qCritical() << "Service start failed:" << startRes.errorMessage();
+        auto startRes = m_controller->start();
+        if (!startRes.isOk()) qCritical() << "Controller start failed:" << startRes.errorMessage();
         ASSERT_TRUE(startRes.isOk());
 
         // Give some time for indexing
@@ -62,7 +62,7 @@ public:
     }
 
     void cleanupTestCase() const {
-        delete m_service;
+        delete m_controller;
         QDir(m_testDir).removeRecursively();
         QFile::remove(m_dbName);
     }
@@ -159,7 +159,7 @@ public:
     }
 
 private:
-    radar::network::NetworkService* m_service{};
+    radar::network::controller::AudioRecordController* m_controller{};
     QString m_testDir;
     QString m_dbName;
     int m_port = 8088;

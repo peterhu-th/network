@@ -14,9 +14,9 @@
     },
     "database": {
         "host": "127.0.0.1",
-        "port": 3306,
-        "user": "root",
-        "pass": "password",
-        "name": "audio_radar"
+        "port": 5432,
+        "user": "postgres",
+        "pass": "postgres",
+        "name": "circle"
     }
 }

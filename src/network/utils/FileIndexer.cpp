@@ -7,7 +7,7 @@
 #include <QDebug>
 
 namespace radar::network {
-    FileIndexer::FileIndexer(DatabaseManager* dbManager, QObject* parent)
+    FileIndexer::FileIndexer(mapper::AudioRecordMapper* dbManager, QObject* parent)
         : QObject(parent), m_dbManager(dbManager) {
         m_timer = new QTimer(this);
         connect(m_timer, &QTimer::timeout, this, &FileIndexer::scan);

@@ -1,8 +1,8 @@
 #ifndef FILE_INDEXER_H
 #define FILE_INDEXER_H
 
-#include "Types.h"
-#include "DatabaseManager.h"
+#include "../../core/Types.h"
+#include "../mapper/AudioRecordMapper.h"
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -12,14 +12,14 @@ namespace radar::network {
     class FileIndexer : public QObject {
         Q_OBJECT
     public:
-        explicit FileIndexer(DatabaseManager* dbManager, QObject* parent = nullptr);
+        explicit FileIndexer(mapper::AudioRecordMapper* dbManager, QObject* parent = nullptr);
         // 启动自动扫描
         Result<void> start(const QString& rootPath, int intervalMs = 60000);
         // 手动扫描
         [[nodiscard]] Result<void> scan() const;
 
     private:
-        DatabaseManager* m_dbManager;
+        mapper::AudioRecordMapper* m_dbManager;
         QString m_rootPath;
         QTimer* m_timer;
 

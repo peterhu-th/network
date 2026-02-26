@@ -14,11 +14,11 @@ namespace radar::network {
     };
 
     struct DatabaseConfig {
-        QString type = "Q_MYSQL";
+        QString type = "QPSQL";
         QString host = "127.0.0.1";     // 指向本机
-        int port = 3306;                // MySQL 数据库的全球标准默认通信端口
-        QString dbName = "audio_radar";
-        QString username = "root";
+        int port = 5432;                // PostgreSQL 默认端口
+        QString dbName = "circle";
+        QString username = "postgres";
         QString password = "";
     };
 }

@@ -1,17 +1,19 @@
-#include <QCoreApplication>
+#include <QApplication>
 #include <QDir>
 #include "Logger.h"
 #include "Config.h"
 #include "audio/AudioSourceFactory.h"
 #include "processing/include/AudioProcessingService.h"
+#include "network/controller/AudioRecordController.h"
+#include "ui/MainWindow.h"
 
 int main(int argc, char* argv[]) {
-    QCoreApplication app(argc, argv);
+    QApplication app(argc, argv);
     LOG_INFO("Main", "AudioRadarClient started");
 
     auto& config = radar::Config::instance();
     const QStringList configCandidates = {
-        QCoreApplication::applicationDirPath() + "/config.json",
+        QApplication::applicationDirPath() + "/config.json",
         QDir::currentPath() + "/config/config.json",
         QDir::currentPath() + "/config.json"
     };
@@ -25,6 +27,22 @@ int main(int argc, char* argv[]) {
     }
     if (!configLoaded) {
         LOG_WARNING("Config", "Failed to load config. Using defaults.");
+    }
+
+    QVariantMap allConfig;
+    allConfig["network"] = config.networkConfig();
+    allConfig["database"] = config.databaseConfig();
+    allConfig["storage"] = config.storageConfig();
+
+    // 初始化网络与存储控制器
+    radar::network::controller::AudioRecordController networkController;
+    if (auto res = networkController.init(allConfig); !res.isOk()) {
+        LOG_ERROR("Network", "Failed to init network controller: " + res.errorMessage());
+        return -1;
+    }
+    if (auto res = networkController.start(); !res.isOk()) {
+        LOG_ERROR("Network", "Failed to start network controller: " + res.errorMessage());
+        return -1;
     }
 
     auto sourceResult = radar::audio::AudioSourceFactory::createAudioSource(&app);
@@ -62,10 +80,11 @@ int main(int argc, char* argv[]) {
                              .arg(static_cast<int>(code)));
                      });
 
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, [source]() {
+    QObject::connect(&app, &QApplication::aboutToQuit, [&source, &networkController]() {
         if (source != nullptr) {
             source->stop();
         }
+        networkController.stop();
     });
 
     auto startResult = source->start();
@@ -73,6 +92,9 @@ int main(int argc, char* argv[]) {
         LOG_ERROR("Audio", startResult.errorMessage());
         return -1;
     }
+
+    radar::ui::MainWindow mainWindow;
+    mainWindow.show();
 
     return app.exec();
 }

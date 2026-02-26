@@ -1,7 +1,7 @@
 #ifndef HTTP_SERVER_H
 #define HTTP_SERVER_H
 
-#include "Types.h"
+#include "../../core/Types.h"
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QObject>
