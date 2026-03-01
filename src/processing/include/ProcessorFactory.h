@@ -1,26 +1,33 @@
-#ifndef PROCESSING_PROCESSOR_FACTORY_H
-#define PROCESSING_PROCESSOR_FACTORY_H
+#ifndef PROCESSING_PROCESSORFACTORY_H
+#define PROCESSING_PROCESSORFACTORY_H
 
-#include "radar_processor_base.h"
-#include "DenoiseProcessor.h"
-#include "VADProcessor.h"
-#include "FeatureExtractor.h"
 #include <memory>
-#include <vector>
+#include "radar_processor_base.h"
 
 namespace radar {
 
+    // 提前声明处理器类（避免头文件循环依赖）
+    class DenoiseProcessor;
+    class VADProcessor;
+    class FeatureExtractor;
+
     class ProcessorFactory {
     public:
-        static std::unique_ptr<Processor> createDenoiseProcessor();
-        static std::unique_ptr<Processor> createVADProcessor(double threshold = 800.0);
-        static std::unique_ptr<Processor> createFeatureExtractor();
-        static std::vector<std::unique_ptr<Processor>> createDefaultPipeline();
+        // 处理器类型枚举（解决"未声明"报错）
+        enum class ProcessorType {
+            Denoise,
+            VAD,
+            FeatureExtractor
+        };
+
+        // 静态创建方法（解决"不是成员"报错）
+        static std::unique_ptr<Processor> createProcessor(ProcessorType type);
 
     private:
+        // 私有化构造函数，禁止实例化
         ProcessorFactory() = default;
     };
 
 } // namespace radar
 
-#endif // PROCESSING_PROCESSOR_FACTORY_H
+#endif // PROCESSING_PROCESSORFACTORY_H

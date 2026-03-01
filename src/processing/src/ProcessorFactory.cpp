@@ -1,25 +1,22 @@
-#include "../include/ProcessorFactory.h"
+#include "ProcessorFactory.h"
+#include "DenoiseProcessor.h"
+#include "VADProcessor.h"
+#include "FeatureExtractor.h"
 
 namespace radar {
 
-    std::unique_ptr<Processor> ProcessorFactory::createDenoiseProcessor() {
-        return std::make_unique<DenoiseProcessor>();
-    }
-
-    std::unique_ptr<Processor> ProcessorFactory::createVADProcessor(double threshold) {
-        return std::make_unique<VADProcessor>(threshold);
-    }
-
-    std::unique_ptr<Processor> ProcessorFactory::createFeatureExtractor() {
-        return std::make_unique<FeatureExtractor>();
-    }
-
-    std::vector<std::unique_ptr<Processor>> ProcessorFactory::createDefaultPipeline() {
-        std::vector<std::unique_ptr<Processor>> processors;
-        processors.push_back(createDenoiseProcessor());
-        processors.push_back(createVADProcessor());
-        processors.push_back(createFeatureExtractor());
-        return processors;
+    // 实现创建方法（补全函数体，解决语法报错）
+    std::unique_ptr<Processor> ProcessorFactory::createProcessor(ProcessorType type) {
+        switch (type) {
+        case ProcessorType::Denoise:
+            return std::make_unique<DenoiseProcessor>();
+        case ProcessorType::VAD:
+            return std::make_unique<VADProcessor>();
+        case ProcessorType::FeatureExtractor:
+            return std::make_unique<FeatureExtractor>();
+        default:
+            return nullptr;
+        }
     }
 
 } // namespace radar
