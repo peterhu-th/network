@@ -4,12 +4,28 @@ import { fetchAudioFiles, getDownloadUrl } from './api.js';
 const tableBody = document.getElementById('tableBody');
 const refreshBtn = document.getElementById('refreshBtn');
 
-// 核心渲染函数
+// === UI 重构说明 === 
+// 用于管理分页的 DOM 节点
+const prevPageBtn = document.getElementById('prevPageBtn');
+const nextPageBtn = document.getElementById('nextPageBtn');
+const pageInfo = document.getElementById('pageInfo');
+
+// --- Model 层 ---
+// 全局状态管理
+let currentPage = 1;
+const pageSize = 20; // 设定每页条目大小为20
+let totalRecords = 0;
+
+// --- Controller 层 ---
+// 核心数据抓取函数
 async function loadAndRenderData() {
     tableBody.innerHTML = '<tr><td colspan="5" class="loading">Pulling Data from Database...</td></tr>';
 
-    // 调用 api.js 里的函数，真正发起网络请求
-    const result = await fetchAudioFiles();
+    // 换算当前页码与后端所需的 offset
+    const offset = (currentPage - 1) * pageSize;
+
+    // 采用携带页面限制的拉取策略
+    const result = await fetchAudioFiles(pageSize, offset);
 
     if (!result) {
         tableBody.innerHTML = '<tr><td colspan="5" class="loading" style="color:#f48771;">Connection Failed!</td></tr>';
@@ -17,26 +33,28 @@ async function loadAndRenderData() {
     }
 
     if (result.status === 'success') {
+        // 同步总记录数，计算总页数并渲染
+        totalRecords = result.total || 0;
         renderTable(result.data);
+        renderPagination();
     } else {
         tableBody.innerHTML = `<tr><td colspan="5" class="loading" style="color:#f48771;">Error: ${result.message}</td></tr>`;
     }
 }
 
-// 将 JSON 数组转化为 HTML 元素
+// --- View 层 ---
+// 渲染表格 (DOM 构建)
 function renderTable(dataArray) {
     tableBody.innerHTML = ''; // 清空加载提示
 
-    if (dataArray.length === 0) {
+    if (!dataArray || dataArray.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="5" class="loading">No Records in Database</td></tr>';
         return;
     }
 
-    // 遍历后端的数组
+    // 遍历当前页的数据组装
     dataArray.forEach(item => {
         const tr = document.createElement('tr');
-
-        // 动态拼装 <td>
         tr.innerHTML = `
             <td style="font-family: monospace; color: #ce9178;">${item.id}</td>
             <td>${item.filePath}</td>
@@ -48,19 +66,47 @@ function renderTable(dataArray) {
         `;
         tableBody.appendChild(tr);
     });
-
-    // 为刚刚生成的所有“下载”按钮绑定点击事件
-    document.querySelectorAll('.download-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const fileId = e.target.getAttribute('data-id');
-            // 打开新窗口，直接访问 C++ 的下载接口
-            window.open(getDownloadUrl(fileId), '_blank');
-        });
-    });
 }
 
-// 绑定顶部的刷新按钮
-refreshBtn.addEventListener('click', loadAndRenderData);
+// 采用事件委托 (Event Delegation) 统一管理点击事件，告别此前给每个 .download-btn 分配单独事件的做法以防内存泄漏
+tableBody.addEventListener('click', (e) => {
+    if (e.target.classList.contains('download-btn')) {
+        const fileId = e.target.getAttribute('data-id');
+        window.open(getDownloadUrl(fileId), '_blank');
+    }
+});
 
-// 网页一打开，立刻执行一次请求
+// 渲染底部分页指示器与按钮状态
+function renderPagination() {
+    const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    pageInfo.innerText = `Page ${currentPage} / ${totalPages}`;
+
+    // 如果无法前进后退，将按钮灰显禁用
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+}
+
+// 绑定底部分页的上下页控制事件
+prevPageBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        loadAndRenderData();
+    }
+});
+
+nextPageBtn.addEventListener('click', () => {
+    const totalPages = Math.ceil(totalRecords / pageSize) || 1;
+    if (currentPage < totalPages) {
+        currentPage++;
+        loadAndRenderData();
+    }
+});
+
+// 绑定顶部的刷新按钮（回到第一页重新拉取）
+refreshBtn.addEventListener('click', () => {
+    currentPage = 1;
+    loadAndRenderData();
+});
+
+// 网页一打开，立刻请求第一页
 loadAndRenderData();

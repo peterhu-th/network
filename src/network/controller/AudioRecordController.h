@@ -7,7 +7,6 @@
 #include "../utils/HttpServer.h"
 
 // 自动扫描本地音频文件并提取数据，生成唯一 ID ，保存数据到 PostgreSQL 数据库中，通过 HTTP 服务器提供前端接口
-//
 namespace radar::network {
     class AudioRecordController : public QObject {
         Q_OBJECT

@@ -15,7 +15,7 @@ namespace radar::network {
         ~AudioRecordService() override;
         [[nodiscard]] Result<void> init(const DatabaseConfig& dbConfig, const QString& storagePath);
         void start();
-        void stop();
+        static void stop();
         [[nodiscard]] Result<std::vector<AudioRecord>> getRecordPage(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) const;
         [[nodiscard]] Result<int> getTotalCount(const QDateTime& startTime, const QDateTime& endTime) const;
         [[nodiscard]] Result<AudioRecord> getRecordById(int64_t id) const;
@@ -23,6 +23,7 @@ namespace radar::network {
         std::shared_ptr<AudioRecordMapper> m_mapper;
         std::unique_ptr<FileIndexer> m_fileIndexer;
         QString m_storagePath;
+        QString m_globalConnectionName;
     };
 }
 

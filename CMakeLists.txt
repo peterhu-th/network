@@ -30,7 +30,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     processing_lib
     # storage
     network
-    ui
+    # ui
     Qt5::Core
     Qt5::Network
     Qt5::Sql

@@ -2,6 +2,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QFileInfo>
+#include <QThreadPool>
 #include "AudioRecordController.h"
 
 namespace radar::network {
@@ -54,6 +55,9 @@ namespace radar::network {
 
     void AudioRecordController::stop(){
         if (m_httpServer) m_httpServer->close();
+        if (QThreadPool::globalInstance()) {
+            QThreadPool::globalInstance()->waitForDone();
+        }
         if (m_service) m_service->stop();
     }
 

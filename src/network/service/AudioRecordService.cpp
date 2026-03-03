@@ -2,9 +2,7 @@
 #include "AudioRecordService.h"
 
 namespace radar::network {
-    AudioRecordService::AudioRecordService(QObject *parent): QObject(parent) {
-        m_mapper = std::make_shared<AudioRecordMapper>();
-    }
+    AudioRecordService::AudioRecordService(QObject *parent): QObject(parent) {}
 
     AudioRecordService::~AudioRecordService() {
         stop();
@@ -12,9 +10,9 @@ namespace radar::network {
 
     Result<void> AudioRecordService::init(const DatabaseConfig& dbConfig, const QString& storagePath) {
         m_storagePath = storagePath;
-        if (auto res = m_mapper->init(dbConfig); !res.isOk()) {
-            return res;
-        }
+        m_globalConnectionName = "Audio_GlobalPool";
+        m_mapper = std::make_shared<AudioRecordMapper>(m_globalConnectionName);
+
         m_fileIndexer = std::make_unique<FileIndexer>(m_mapper.get(), this);
         return Result<void>::ok();
     }
