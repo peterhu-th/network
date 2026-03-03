@@ -18,7 +18,7 @@ add_subdirectory(src/processing)
 add_subdirectory(src/network)
 add_subdirectory(tests)
 
-add_subdirectory(src/ui)
+# add_subdirectory(src/ui)
 
 # main executable
 add_executable(${PROJECT_NAME} src/main.cpp

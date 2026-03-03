@@ -1,16 +1,12 @@
-#include "AudioRecordController.h"
 #include <QJsonDocument>
-#include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QFileInfo>
-#include <QDebug>
-#include <QFile>
-#include <algorithm>
+#include "AudioRecordController.h"
 
-namespace radar::network::controller {
-
+namespace radar::network {
     AudioRecordController::AudioRecordController(QObject* parent) : QObject(parent) {
-        m_service = std::make_unique<service::AudioRecordService>();
+        m_service = std::make_unique<AudioRecordService>();
         m_httpServer = std::make_unique<HttpServer>();
     }
 
@@ -19,6 +15,7 @@ namespace radar::network::controller {
     }
 
     Result<void> AudioRecordController::init(const QVariantMap& config) {
+        // 提取配置
         DatabaseConfig dbConfig;
         if (config.contains("database")) {
             QVariantMap dbMap = config["database"].toMap();
@@ -27,23 +24,21 @@ namespace radar::network::controller {
             dbConfig.port = dbMap.value("port", 5432).toInt();
             dbConfig.username = dbMap.value("user", "postgres").toString();
             dbConfig.password = dbMap.value("pass", "").toString();
-            dbConfig.dbName = dbMap.value("name", "circle").toString(); // 默认 circle 数据库
+            dbConfig.dbName = dbMap.value("name", "circle").toString();
         }
-
         QString storagePath = ".";
         if (config.contains("storage")) {
             storagePath = config["storage"].toMap().value("path", ".").toString();
         }
-
         if (config.contains("network")) {
             m_port = config["network"].toMap().value("port", 8080).toInt();
         }
-
+        // 初始化 Service
         auto res = m_service->init(dbConfig, storagePath);
         if (!res.isOk()) {
             return Result<void>::error("Service init failed: " + res.errorMessage(), res.errorCode());
         }
-
+        // 绑定 URL 路由
         setupRoutes();
         return Result<void>::ok();
     }
@@ -57,137 +52,163 @@ namespace radar::network::controller {
         return Result<void>::ok();
     }
 
-    void AudioRecordController::stop() {
+    void AudioRecordController::stop(){
         if (m_httpServer) m_httpServer->close();
         if (m_service) m_service->stop();
     }
 
     void AudioRecordController::setupRoutes() {
-        m_httpServer->route("/api/files", [this](QTcpSocket* s, const QString&, const QMap<QString, QString>& p, const QMap<QString, QString>& h) {
-            this->handleListFiles(s, p, h);
+        m_httpServer->route("/api/files", [this](QTcpSocket* socket, const QString& path, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) {
+            this->handleListFiles(socket, params, headers);
         });
 
-        m_httpServer->route("/api/download", [this](QTcpSocket* s, const QString& path, const QMap<QString, QString>&, const QMap<QString, QString>& h) {
-            this->handleDownload(s, path, h);
+        m_httpServer->route("/api/download", [this](QTcpSocket* socket, const QString& path, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) {
+            this->handleDownload(socket, path, params, headers);
         });
+    }
+
+    bool AudioRecordController::checkAuthorization(QTcpSocket *socket, const QMap<QString, QString> &params, const QMap<QString, QString> &headers) {
+        QString token;
+        if (params.contains("token")) {
+            token = params["token"];
+        } else if (headers.contains("authorization")) {
+            token = headers.value("authorization");
+            token.replace("bearer", "", Qt::CaseInsensitive);
+            token = token.trimmed();
+        }
+        if (token != "user") {
+            QByteArray response = "HTTP/1.1 401 Unauthorized\r\n"
+                                  "Access-Control-Allow-Origin: *\r\n"
+                                  "Content-Type: application/json; charset=utf-8\r\n\r\n"
+                                  "{\"status\":\"error\",\"message\":\"Authorization failed.\"}";
+            socket->write(response);
+            socket->disconnectFromHost();
+            return false;
+        }
+        return true;
     }
 
     void AudioRecordController::handleListFiles(QTcpSocket* socket, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) {
-        QDateTime startTime = QDateTime::fromMSecsSinceEpoch(0);
-        QDateTime endTime = QDateTime::currentDateTime().addDays(1);
-        int limit = 100;
-        int offset = 0;
-
+        if (!checkAuthorization(socket, params, headers)) return;
+        // 解析参数
+        int limit = params.value("limit", "20").toInt();
+        int offset = params.value("offset", "0").toInt();
+        QDateTime startTime;
+        QDateTime endTime;
         if (params.contains("startTime")) {
-            startTime = QDateTime::fromMSecsSinceEpoch(params["startTime"].toLongLong());
+            startTime = QDateTime::fromString(params["startTime"], Qt::ISODate);
         }
         if (params.contains("endTime")) {
-            endTime = QDateTime::fromMSecsSinceEpoch(params["endTime"].toLongLong());
-        }
-        if (params.contains("limit")) limit = params["limit"].toInt();
-        if (params.contains("offset")) offset = params["offset"].toInt();
-
-        // 获取当前页数据
-        auto result = m_service->getRecordsPage(startTime, endTime, limit, offset);
-        if (!result.isOk()) {
-            socket->write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
-            socket->disconnectFromHost();
-            return;
+            endTime = QDateTime::fromString(params["endTime"], Qt::ISODate);
         }
 
-        // 获取总数
-        auto countResult = m_service->getTotalCount(startTime, endTime);
-        int totalCount = countResult.isOk() ? countResult.value() : 0;
+        // 调用 Service
+        auto recordsRes = m_service->getRecordPage(startTime, endTime, limit, offset);
+        auto countRes = m_service->getTotalCount(startTime, endTime);
 
-        QJsonArray array;
-        for (const auto& record : result.value()) {
-            QJsonObject obj;
-            obj["id"] = QString::number(record.id);
-            obj["path"] = record.filePath;
-            obj["created_at"] = record.createdAt.toString(Qt::ISODate);
-            obj["size"] = record.fileSize;
-            array.append(obj);
+        // 准备构造 JSON 响应
+        QJsonObject responseObj;
+
+        if (!recordsRes.isOk() || !countRes.isOk()) {
+            responseObj["status"] = "error";
+            responseObj["message"] = recordsRes.isOk() ? countRes.errorMessage() : recordsRes.errorMessage();
+        } else {
+            responseObj["status"] = "success";
+            responseObj["total"] = countRes.value();
+
+            QJsonArray dataArray;
+            for (const auto& record : recordsRes.value()) {
+                QJsonObject recordObj;
+                recordObj["id"] = QString::number(record.id);
+                recordObj["filePath"] = record.filePath;
+                recordObj["duration"] = record.duration;
+                recordObj["fileSize"] = QString::number(record.fileSize);
+                recordObj["generationTime"] = record.generationTime.toString(Qt::ISODate);
+                dataArray.append(recordObj);
+            }
+            responseObj["data"] = dataArray;
         }
 
-        QJsonObject resp;
-        resp["code"] = 200;
-        resp["data"] = array;
-        resp["total"] = totalCount;
-        resp["limit"] = limit;
-        resp["offset"] = offset;
+        QJsonDocument doc(responseObj);
+        QByteArray jsonBytes = doc.toJson(QJsonDocument::Compact);
 
-        QByteArray data = QJsonDocument(resp).toJson();
+        // 构造 HTTP 响应头并发送回前端
+        QByteArray response;
+        response.append("HTTP/1.1 200 OK\r\n");
+        response.append("Content-Type: application/json; charset=utf-8\r\n");
+        response.append("Access-Control-Allow-Origin: *\r\n");
+        response.append("Connection: close\r\n");
+        response.append("Content-Length: " + QByteArray::number(jsonBytes.size()) + "\r\n");
+        response.append("\r\n");
+        response.append(jsonBytes);
 
-        socket->write("HTTP/1.1 200 OK\r\n");
-        socket->write("Content-Type: application/json\r\n");
-        socket->write("Content-Length: " + QByteArray::number(data.size()) + "\r\n");
-        socket->write("Access-Control-Allow-Origin: *\r\n");
-        socket->write("\r\n");
-        socket->write(data);
+        socket->write(response);
         socket->disconnectFromHost();
     }
 
-    void AudioRecordController::handleDownload(QTcpSocket* socket, const QString& path, const QMap<QString, QString>& headers) {
-        QStringList parts = path.split('/');
-        if (parts.isEmpty()) {
-            socket->write("HTTP/1.1 400 Bad Request\r\n\r\n");
+    void AudioRecordController::handleDownload(QTcpSocket* socket, const QString& path, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) {
+        if (!params.contains("id")) {
+            QByteArray response = "HTTP/1.1 400 Bad Request\r\n\r\nMissing 'id' parameter";
+            socket->write(response);
             socket->disconnectFromHost();
             return;
         }
 
-        QString idStr = parts.last();
-        bool ok;
-        int64_t id = idStr.toLongLong(&ok);
-
-        if (!ok) {
-            socket->write("HTTP/1.1 400 Bad Request\r\n\r\n");
+        int64_t id = params["id"].toLongLong();
+        auto recordRes = m_service->getRecordById(id);
+        if (!recordRes.isOk()) {
+            QByteArray response = "HTTP/1.1 404 Not Found\r\n\r\nRecord not found in database";
+            socket->write(response);
             socket->disconnectFromHost();
             return;
         }
 
-        auto result = m_service->getRecordById(id);
-        if (!result.isOk()) {
-            socket->write("HTTP/1.1 404 Not Found\r\n\r\n");
-            socket->disconnectFromHost();
-            return;
-        }
-
-        auto file = new QFile(result.value().filePath, socket);
+        // 在本地打开音频文件
+        QString filePath = recordRes.value().filePath;
+        auto* file = new QFile(filePath);
         if (!file->open(QIODevice::ReadOnly)) {
-            socket->write("HTTP/1.1 500 File Open Failed\r\n\r\n");
+            QByteArray response = "HTTP/1.1 404 Not Found\r\n\r\nFile not found on disk";
+            socket->write(response);
             socket->disconnectFromHost();
+            delete file;
             return;
         }
+        file->setParent(socket);
+        // 读取文件信息
+        QFileInfo fileInfo(filePath);
+        QString fileName = fileInfo.fileName();
+        qint64 fileSize = fileInfo.size();
 
-        qint64 fileSize = file->size();
-        socket->write("HTTP/1.1 200 OK\r\n");
-        socket->write("Content-Type: audio/wav\r\n");
-        socket->write(QString("Content-Length: %1\r\n").arg(fileSize).toUtf8());
-        socket->write("Content-Disposition: attachment; filename=\"download.wav\"\r\n");
-        socket->write("Access-Control-Allow-Origin: *\r\n");
-        socket->write("\r\n");
+        QByteArray response;
+        response.append("HTTP/1.1 200 OK\r\n");
+        response.append("Access-Control-Allow-Origin: *\r\n");
+        response.append("Content-Type: audio/wav\r\n");
+        response.append("Content-Disposition: attachment; filename=\"" + fileName.toUtf8() + "\"\r\n");
+        response.append("Content-Length: " + QByteArray::number(fileSize) + "\r\n");
+        response.append("Connection: close\r\n");
+        response.append("\r\n");
+        socket->write(response);
 
-        auto remainingBytes = std::make_shared<qint64>(fileSize);
-
-        auto sendNextChunk = [socket, file, remainingBytes]() {
-            if (!socket || !file || *remainingBytes <= 0) return;
-            qint64 chunkSize = std::min(*remainingBytes, static_cast<qint64>(65536));
-            QByteArray chunk = file->read(chunkSize);
-
-            if (chunk.isEmpty()) {
+        QObject::connect(socket, &QTcpSocket::bytesWritten, file, [socket, file](qint64 bytes) {
+            if (!file->isOpen()) return;
+            if (!file->atEnd()) {
+                QByteArray chunk = file->read(64 * 1024);
+                socket->write(chunk);
+            } else {
+                file->close();
                 socket->disconnectFromHost();
-                return;
+                file->deleteLater();
             }
+        });
 
+        // 发送文件
+        if (!file->atEnd()) {
+            QByteArray chunk = file->read(64 * 1024);
             socket->write(chunk);
-            *remainingBytes -= chunk.size();
-
-            if (*remainingBytes <= 0) {
-                socket->disconnectFromHost();
-            }
-        };
-
-        connect(socket, &QTcpSocket::bytesWritten, socket, sendNextChunk);
-        sendNextChunk();
+        } else {
+            file->close();
+            socket->disconnectFromHost();
+            file->deleteLater();
+        }
     }
 }

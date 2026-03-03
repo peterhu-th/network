@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Radar Console</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Audio Radar Console</h1>
+            <button id="refreshBtn">Refresh Data</button>
+        </header>
+
+        <main>
+            <table id="audioTable">
+                <thead>
+                    <tr>
+                        <th>File ID (SnowFlake)</th>
+                        <th>Local Path</th>
+                        <th>Size (bytes)</th>
+                        <th>Generation Time</th>
+                        <th>Operation</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="5" class="loading">Waiting for Connection...</td></tr>
+                </tbody>
+            </table>
+        </main>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>

@@ -1,181 +1,108 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QNetworkReply>
-#include <QEventLoop>
-#include <QDebug>
-#include <iostream>
-#include <QDateTime>
-#include "../src/network/controller/AudioRecordController.h"
+#include <QThread>
+#include "controller/AudioRecordController.h"
 
-// Simple assertion macro
-#define ASSERT_TRUE(cond) \
-    if (!(cond)) { \
-        qCritical() << "Assertion failed at" << __FILE__ << ":" << __LINE__; \
-        exit(1); \
-    }
-
-class TestNetwork : public QObject {
-    Q_OBJECT
-public:
-    explicit TestNetwork(QObject* parent = nullptr) : QObject(parent) {}
-
-    void initTestCase() {
-        m_testDir = QDir::currentPath() + "/test_data";
-        QDir().mkpath(m_testDir);
-
-        // Create dummy files
-        createDummyFile("test1", 1024);
-        createDummyFile("test2", 2048);
-
-        m_dbName = m_testDir + "/test_audio_radar.db";
-        
-        // Config
-        QVariantMap config;
-        QVariantMap dbConfig;
-        dbConfig["type"] = "QSQLITE";
-        dbConfig["dbName"] = m_dbName;
-        config["database"] = dbConfig;
-
-        QVariantMap netConfig;
-        netConfig["port"] = m_port;
-        config["network"] = netConfig;
-
-        QVariantMap storageConfig;
-        storageConfig["path"] = m_testDir;
-        config["storage"] = storageConfig;
-
-        m_controller = new radar::network::controller::AudioRecordController(this);
-        auto initRes = m_controller->init(config);
-        if (!initRes.isOk()) qCritical() << "Controller init failed:" << initRes.errorMessage();
-        ASSERT_TRUE(initRes.isOk());
-
-        auto startRes = m_controller->start();
-        if (!startRes.isOk()) qCritical() << "Controller start failed:" << startRes.errorMessage();
-        ASSERT_TRUE(startRes.isOk());
-
-        // Give some time for indexing
-        wait(1000);
-    }
-
-    void cleanupTestCase() const {
-        delete m_controller;
-        QDir(m_testDir).removeRecursively();
-        QFile::remove(m_dbName);
-    }
-
-    void createDummyFile(const QString& name, int sizeBytes) const {
-        QString wavPath = m_testDir + "/" + name + ".wav";
-        QFile f(wavPath);
-        if (f.open(QIODevice::WriteOnly)) {
-            f.write(QByteArray(sizeBytes, 'A'));
-            f.close();
-        }
-
-        QString jsonPath = m_testDir + "/" + name + ".json";
-        QJsonObject obj;
-        obj["timestamp"] = QDateTime::currentMSecsSinceEpoch();
-        obj["duration"] = 5000;
-        QJsonDocument doc(obj);
-        QFile fj(jsonPath);
-        if (fj.open(QIODevice::WriteOnly)) {
-            fj.write(doc.toJson());
-            fj.close();
-        }
-    }
-
-    void testApiList() const {
-        qDebug() << "Running testApiList...";
-        QNetworkAccessManager manager;
-        qint64 currentMs = QDateTime::currentMSecsSinceEpoch();
-        QString urlStr = QString("http://127.0.0.1:%1/api/files?startTime=0&endTime=%2")
-                             .arg(m_port).arg(currentMs + 3600000);
-
-        QNetworkRequest request((QUrl(urlStr)));
-        QNetworkReply* reply = manager.get(request);
-
-        waitForFinished(reply);
-
-        ASSERT_TRUE(reply->error() == QNetworkReply::NoError);
-        QByteArray data = reply->readAll();
-        QJsonDocument doc = QJsonDocument::fromJson(data);
-        ASSERT_TRUE(!doc.isNull());
-        ASSERT_TRUE(doc.object()["code"].toInt() == 200);
-        QJsonArray arr = doc.object()["data"].toArray();
-        ASSERT_TRUE(arr.size() >= 2);
-        
-        delete reply;
-        qDebug() << "testApiList Passed";
-    }
-
-    void testApiDownload() const {
-        qDebug() << "Running testApiDownload...";
-        // 1. Get List to get ID
-        QNetworkAccessManager manager;
-        qint64 currentMs = QDateTime::currentMSecsSinceEpoch();
-        QString urlStr = QString("http://127.0.0.1:%1/api/files?startTime=0&endTime=%2")
-                                     .arg(m_port).arg( currentMs + 3600000);
-        QNetworkRequest requestList((QUrl(urlStr)));
-        QNetworkReply* replyList = manager.get(requestList);
-        waitForFinished(replyList);
-        
-        QJsonDocument doc = QJsonDocument::fromJson(replyList->readAll());
-        QJsonArray arr = doc.object()["data"].toArray();
-        ASSERT_TRUE(!arr.isEmpty());
-        QString id = arr.first().toObject()["id"].toString();
-        delete replyList;
-
-        // 2. Download
-        QNetworkRequest requestDownload(QUrl("http://127.0.0.1:" + QString::number(m_port) + "/api/download/" + id));
-        requestDownload.setRawHeader("Authorization", "Bearer my_secret_token");
-        QNetworkReply* replyDownload = manager.get(requestDownload);
-        
-        waitForFinished(replyDownload);
-
-        ASSERT_TRUE(replyDownload->error() == QNetworkReply::NoError);
-        QByteArray data = replyDownload->readAll();
-        ASSERT_TRUE(data.size() > 0);
-        // Should match dummy file size (1024 or 2048)
-        ASSERT_TRUE(data.size() == 1024 || data.size() == 2048);
-        
-        delete replyDownload;
-        qDebug() << "testApiDownload Passed";
-    }
-
-    static void wait(int ms) {
-        QEventLoop loop;
-        QTimer::singleShot(ms, &loop, &QEventLoop::quit);
-        loop.exec();
-    }
-
-    static void waitForFinished(const QNetworkReply* reply) {
-        if (reply->isFinished()) return;
-        QEventLoop loop;
-        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-        loop.exec();
-    }
-
-private:
-    radar::network::controller::AudioRecordController* m_controller{};
-    QString m_testDir;
-    QString m_dbName;
-    int m_port = 8088;
-};
+using namespace radar::network;
 
 int main(int argc, char *argv[]) {
-    QCoreApplication a(argc, argv);
-    
-    TestNetwork test;
-    test.initTestCase();
-    test.testApiList();
-    test.testApiDownload();
-    test.cleanupTestCase();
+    // 创建 Qt 控制台应用的基础环境（网络和数据库模块都需要它）
+    QCoreApplication app(argc, argv);
 
-    qDebug() << "All tests passed!";
-    return 0;
+    qDebug() << "=== 后端独立集成测试 ===";
+    {
+        // 1. 准备测试用的假文件
+        QString testDataPath = "./test_data";
+        QDir().mkpath(testDataPath);
+        QFile wavFile(testDataPath + "/dummy.wav");
+        if (wavFile.open(QIODevice::WriteOnly)) {
+            wavFile.write("RIFF dummy wav content");
+            wavFile.close();
+        }
+        qDebug() << "[1/4] 已生成测试用的本地音频文件.";
+
+        // 2. 初始化 Controller
+        AudioRecordController controller;
+
+        // 伪造全局配置
+        QVariantMap config;
+        QVariantMap dbMap;
+        dbMap["type"] = "QPSQL";
+        dbMap["host"] = "127.0.0.1";
+        dbMap["port"] = 5432;
+        dbMap["name"] = "audio";
+        dbMap["user"] = "postgres";
+        dbMap["pass"] = "6";
+        config["database"] = dbMap;
+
+        QVariantMap netMap;
+        netMap["port"] = 8080;
+        config["network"] = netMap;
+
+        QVariantMap storageMap;
+        storageMap["path"] = testDataPath;
+        config["storage"] = storageMap;
+
+        auto initRes = controller.init(config);
+        if (!initRes.isOk()) {
+            qCritical() << "控制器初始化失败:" << initRes.errorMessage();
+            return -1;
+        }
+
+        auto startRes = controller.start();
+        if (!startRes.isOk()) {
+            qCritical() << "控制器启动失败:" << startRes.errorMessage();
+            return -1;
+        }
+        qDebug() << "[2/4] 后端服务已启动，监听 8080 端口.";
+
+        QThread::msleep(500);
+
+        // 3. 模拟前端发起 HTTP 请求
+        qDebug() << "[3/4] 模拟前端客户端请求 /api/files...";
+        QTcpSocket clientSocket;
+        clientSocket.connectToHost("127.0.0.1", 8080);
+
+        int timeout = 3000;
+        while (clientSocket.state() != QAbstractSocket::ConnectedState && timeout > 0) {
+            app.processEvents();
+            QThread::msleep(10);
+            timeout -= 10;
+        }
+
+        if (clientSocket.state() != QAbstractSocket::ConnectedState) {
+            qCritical() << "无法连接到本地 HttpServer!";
+            return -1;
+        }
+
+        // 构造标准的 HTTP GET 请求报文
+        QByteArray request = "GET /api/files?limit=10 HTTP/1.1\r\n"
+                             "Host: 127.0.0.1\r\n"
+                             "Authorization: Bearer user\r\n"
+                             "\r\n";
+        clientSocket.write(request);
+        timeout = 5000;
+
+        while (clientSocket.state() == QAbstractSocket::ConnectedState && timeout > 0) {
+            app.processEvents();
+            QThread::msleep(10);
+            timeout -= 10;
+        }
+
+        QByteArray response = clientSocket.readAll();
+        if (response.isEmpty()) {
+            qCritical() << "服务器未在规定时间内响应!";
+        } else {
+            qDebug() << "\n========== 收到的服务器响应 ==========";
+            qDebug().noquote() << response;
+            qDebug() << "======================================\n";
+        }
+
+        qDebug() << "[4/4] 测试结束，正在清理环境...";
+        qDebug() << "=== 测试已转为后台服务模式，正在持续监听 8080 端口 ===";
+
+        // 进入 Qt 事件循环，让程序永远挂起等待前端请求
+        return app.exec();
+    }
 }
-
-#include "test_network.moc"

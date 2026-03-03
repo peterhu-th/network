@@ -1,11 +1,10 @@
-#include "AudioRecordMapper.h"
 #include <QSqlQuery>
-#include <QSqlError>
-#include <QDebug>
 #include <QUuid>
+#include <QSqlError>
+#include "AudioRecordMapper.h"
 
-namespace radar::network::mapper {
-    AudioRecordMapper::AudioRecordMapper(QObject* parent) : QObject(parent) {
+namespace radar::network {
+    AudioRecordMapper::AudioRecordMapper() {
         m_connectionName = "AudioRadarDB_" + QUuid::createUuid().toString();
     }
 
@@ -16,15 +15,13 @@ namespace radar::network::mapper {
         QSqlDatabase::removeDatabase(m_connectionName);
     }
 
-    Result<void> AudioRecordMapper::init(const DatabaseConfig& config) {
+    Result<void> AudioRecordMapper::init(const DatabaseConfig &config) {
         std::lock_guard<std::mutex> lock(m_mutex);
-
         if (QSqlDatabase::contains(m_connectionName)) {
-            m_db = QSqlDatabase::database(m_connectionName);
+            m_db = QSqlDatabase::addDatabase(m_connectionName);
         } else {
             m_db = QSqlDatabase::addDatabase(config.type, m_connectionName);
         }
-
         m_db.setHostName(config.host);
         m_db.setPort(config.port);
         m_db.setDatabaseName(config.dbName);
@@ -34,11 +31,9 @@ namespace radar::network::mapper {
         if (!m_db.open()) {
             return Result<void>::error("Database connection failed: " + m_db.lastError().text(), ErrorCode::DatabaseInitFailed);
         }
-
-        if (auto res = createTable(); !res.isOk()) {
-            return Result<void>::error("Failed to create table: " + res.errorMessage(), ErrorCode::DatabaseInitFailed);
+        if (!createTable().isOk()) {
+            return Result<void>::error("Failed to create table: " + createTable().errorMessage(), ErrorCode::DatabaseInitFailed);
         }
-
         return Result<void>::ok();
     }
 
@@ -49,7 +44,7 @@ namespace radar::network::mapper {
                 id BIGINT PRIMARY KEY,
                 file_path VARCHAR(512) NOT NULL UNIQUE,
                 generation_time TIMESTAMP NOT NULL,
-                duration_ms INT,
+                duration INT,
                 file_size BIGINT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -60,133 +55,128 @@ namespace radar::network::mapper {
         return Result<void>::error("Create table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
     }
 
-    Result<void> AudioRecordMapper::insertRecord(const AudioRecord& record) {
+    Result<void> AudioRecordMapper::insertRecord(const AudioRecord &record) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_db.isOpen()) return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
-
-        QSqlQuery query(m_db);
-        query.prepare("INSERT INTO audio_records (id, file_path, generation_time, duration_ms, file_size) "
-                      "VALUES (:id, :path, :gen_time, :duration, :size)");
-
-        query.bindValue(":id", QVariant::fromValue(record.id));
-        query.bindValue(":path", record.filePath);
-        query.bindValue(":gen_time", record.generationTime);
-        query.bindValue(":duration", record.durationMs);
-        query.bindValue(":size", QVariant::fromValue(record.fileSize));
-
-        if (!query.exec()) {
-            return Result<void>::error("Insert failed: " + query.lastError().text());
+        if (!m_db.isOpen()) {
+            return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
         }
-
+        QSqlQuery query(m_db);
+        query.prepare("INSERT INTO audio_records (id, file_path, generation_time, duration, file_size) "
+            "VALUES (:id, :file_path, :generation_time, :duration, :size)");
+        query.bindValue(":id", QVariant::fromValue(record.id));
+        query.bindValue(":file_path", record.filePath);
+        query.bindValue(":generation_time", record.generationTime);
+        query.bindValue(":duration", QVariant::fromValue(record.duration));
+        query.bindValue(":size", QVariant::fromValue(record.fileSize));
+        if (!query.exec()) {
+            return Result<void>::error("Insert failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        }
         return Result<void>::ok();
     }
 
     Result<AudioRecord> AudioRecordMapper::getRecord(int64_t id) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_db.isOpen()) return Result<AudioRecord>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
-
+        if (!m_db.isOpen()) {
+            return Result<AudioRecord>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
         QSqlQuery query(m_db);
-        query.prepare("SELECT id, file_path, generation_time, duration_ms, file_size, created_at FROM audio_records WHERE id = :id");
+        query.prepare("SELECT id ,file_path, generation_time, duration, file_size, created_at FROM audio_records WHERE id = :id");
         query.bindValue(":id", QVariant::fromValue(id));
-
         if (!query.exec()) {
             return Result<AudioRecord>::error("Query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
         }
         if (!query.next()) {
             return Result<AudioRecord>::error("Record not found", ErrorCode::RecordNotFound);
         }
-
         AudioRecord record;
         record.id = query.value("id").toLongLong();
         record.filePath = query.value("file_path").toString();
         record.generationTime = query.value("generation_time").toDateTime();
-        record.durationMs = query.value("duration_ms").toInt();
+        record.duration = query.value("duration").toInt();
         record.fileSize = query.value("file_size").toLongLong();
         record.createdAt = query.value("created_at").toDateTime();
-
         return Result<AudioRecord>::ok(record);
     }
 
-    Result<std::vector<AudioRecord>> AudioRecordMapper::queryRecords(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) {
+    Result<QString> AudioRecordMapper::getFilePathById(qint64 id) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_db.isOpen()) return Result<std::vector<AudioRecord>>::error("Database not open");
-
+        if (!m_db.isOpen()) {
+            return Result<QString>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
         QSqlQuery query(m_db);
-        QString sql = "SELECT id, file_path, generation_time, duration_ms, file_size, created_at FROM audio_records WHERE 1=1";
+        query.prepare("SELECT file_path FROM audio_records WHERE id = :id LIMIT 1");
+        query.bindValue(":id", id);
+        if (query.exec() && query.next()) {
+            return Result<QString>::ok(query.value("file_path").toString());
+        }
+        return Result<QString>::error("Failed to get file path", ErrorCode::DatabaseQueryFailed);
+    }
 
-        if (startTime.isValid()) {
-            sql += " AND generation_time >= :start";
+    Result<std::vector<AudioRecord> > AudioRecordMapper::queryRecords(const QDateTime &startTime, const QDateTime &endTime, int limit, int offset) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_db.isOpen()) {
+            return Result<std::vector<AudioRecord>>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
         }
-        if (endTime.isValid()) {
-            sql += " AND generation_time <= :end";
-        }
+        QSqlQuery query(m_db);
+        QString sql = "SELECT id, file_path, generation_time, duration, file_size, created_at FROM audio_records WHERE 1=1";
+        if (startTime.isValid()) sql += " AND generation_time >= :start_time";
+        if (endTime.isValid()) sql += " AND generation_time <= :end_time";
+        // 按照时间顺序倒序排列
         sql += " ORDER BY generation_time DESC LIMIT :limit OFFSET :offset";
-
         query.prepare(sql);
-        if (startTime.isValid()) query.bindValue(":start", startTime);
-        if (endTime.isValid()) query.bindValue(":end", endTime);
+        if (startTime.isValid()) query.bindValue(":start_time", startTime);
+        if (startTime.isValid()) query.bindValue(":end_time", endTime);
         query.bindValue(":limit", limit);
         query.bindValue(":offset", offset);
-
         if (!query.exec()) {
             return Result<std::vector<AudioRecord>>::error("Query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
         }
-
         std::vector<AudioRecord> records;
         while (query.next()) {
             AudioRecord record;
             record.id = query.value("id").toLongLong();
             record.filePath = query.value("file_path").toString();
             record.generationTime = query.value("generation_time").toDateTime();
-            record.durationMs = query.value("duration_ms").toInt();
+            record.duration = query.value("duration").toInt();
             record.fileSize = query.value("file_size").toLongLong();
             record.createdAt = query.value("created_at").toDateTime();
             records.push_back(record);
         }
-
         return Result<std::vector<AudioRecord>>::ok(records);
     }
-    
-    Result<int> AudioRecordMapper::countRecords(const QDateTime& startTime, const QDateTime& endTime) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_db.isOpen()) return Result<int>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
+    Result<int> AudioRecordMapper::countRecords(const QDateTime &startTime, const QDateTime &endTime) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_db.isOpen()) {
+            return Result<int>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
         QSqlQuery query(m_db);
         QString sql = "SELECT COUNT(*) FROM audio_records WHERE 1=1";
-
-        if (startTime.isValid()) {
-            sql += " AND generation_time >= :start";
-        }
-        if (endTime.isValid()) {
-            sql += " AND generation_time <= :end";
-        }
-
+        if (startTime.isValid()) sql += " AND generation_time >= :start_time";
+        if (endTime.isValid()) sql += " AND generation_time <= :end_time";
         query.prepare(sql);
-        if (startTime.isValid()) query.bindValue(":start", startTime);
-        if (endTime.isValid()) query.bindValue(":end", endTime);
-
+        if (startTime.isValid()) query.bindValue(":start_time", startTime);
+        if (endTime.isValid()) query.bindValue(":end_time", endTime);
         if (!query.exec()) {
-            return Result<int>::error("Count Query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            return Result<int>::error("Count query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
         }
-        
         if (query.next()) {
             return Result<int>::ok(query.value(0).toInt());
         }
-        
         return Result<int>::ok(0);
     }
 
-    Result<bool> AudioRecordMapper::hasRecord(const QString& filePath) {
+    Result<bool> AudioRecordMapper::hasRecord(const QString &filePath) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (!m_db.isOpen()) return Result<bool>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
-
-        QSqlQuery query(m_db);
-        query.prepare("SELECT count(*) FROM audio_records WHERE file_path = :path");
-        query.bindValue(":path", filePath);
-
-        if (query.exec() && query.next()) {
-            return Result<bool>::ok(query.value(0).toInt() > 0);
+        if (!m_db.isOpen()) {
+            return Result<bool>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
         }
-        return Result<bool>::error("Query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        QSqlQuery query(m_db);
+        query.prepare("SELECT 1 FROM audio_records WHERE file_path = :path LIMIT 1");
+        query.bindValue(":path", filePath);
+        if (query.exec() && query.next()) {
+            return Result<bool>::ok(true);
+        }
+        return Result<bool>::ok(false);
     }
 }

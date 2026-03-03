@@ -1,4 +1,3 @@
-
 add_library(network
         mapper/AudioRecordMapper.cpp
         mapper/AudioRecordMapper.h
@@ -12,15 +11,16 @@ add_library(network
         utils/IdGenerator.h
         utils/FileIndexer.cpp
         utils/FileIndexer.h
+        NetworkDefines.h
 )
 
 target_include_directories(network PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(network PUBLIC
-    Qt5::Core
-    Qt5::Network
-    Qt5::Sql
-    core
+        Qt5::Core
+        Qt5::Network
+        Qt5::Sql
+        core
 )

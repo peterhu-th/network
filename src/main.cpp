@@ -5,10 +5,9 @@
 #include "audio/AudioSourceFactory.h"
 #include "processing/include/AudioProcessingService.h"
 #include "network/controller/AudioRecordController.h"
-#include "ui/MainWindow.h"
 
 int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
+    QCoreApplication app(argc, argv);
     LOG_INFO("Main", "AudioRadarClient started");
 
     auto& config = radar::Config::instance();
@@ -35,7 +34,7 @@ int main(int argc, char* argv[]) {
     allConfig["storage"] = config.storageConfig();
 
     // 初始化网络与存储控制器
-    radar::network::controller::AudioRecordController networkController;
+    radar::network::AudioRecordController networkController;
     if (auto res = networkController.init(allConfig); !res.isOk()) {
         LOG_ERROR("Network", "Failed to init network controller: " + res.errorMessage());
         return -1;
@@ -92,9 +91,5 @@ int main(int argc, char* argv[]) {
         LOG_ERROR("Audio", startResult.errorMessage());
         return -1;
     }
-
-    radar::ui::MainWindow mainWindow;
-    mainWindow.show();
-
     return app.exec();
 }
