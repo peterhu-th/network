@@ -3,6 +3,8 @@
 #include <QJsonArray>
 #include <QFileInfo>
 #include <QThreadPool>
+#include <QElapsedTimer>
+#include <algorithm>
 #include "AudioRecordController.h"
 
 namespace radar::network {
@@ -167,10 +169,23 @@ namespace radar::network {
             return;
         }
 
-        // 在本地打开音频文件
+        // 在本地打开音频文件或其关联的 JSON 元数据文件
         QString filePath = recordRes.value().filePath;
+        QString contentType = "audio/wav";
+        if (params.value("type") == "json") {
+            if (filePath.endsWith(".wav", Qt::CaseInsensitive)) {
+                filePath.replace(filePath.length() - 4, 4, ".json");
+            } else {
+                filePath += ".json";
+            }
+            contentType = "application/json; charset=utf-8";
+        }
+        
+        qDebug() << "[Downloader] Attempting to open file at path:" << filePath << " for type=" << params.value("type");
+
         auto* file = new QFile(filePath);
         if (!file->open(QIODevice::ReadOnly)) {
+            qWarning() << "[Downloader] Failed to open file:" << filePath << ", error:" << file->errorString();
             QByteArray response = "HTTP/1.1 404 Not Found\r\n\r\nFile not found on disk";
             socket->write(response);
             socket->disconnectFromHost();
@@ -178,41 +193,123 @@ namespace radar::network {
             return;
         }
         file->setParent(socket);
+        
         // 读取文件信息
         QFileInfo fileInfo(filePath);
         QString fileName = fileInfo.fileName();
         qint64 fileSize = fileInfo.size();
 
+        qint64 startPos = 0;
+        qint64 endPos = fileSize - 1;
+        bool isPartialContent = false;
+
+        // 断点续传支持
+        if (headers.contains("range")) {
+            QString rangeHeader = headers["range"];
+            if (rangeHeader.startsWith("bytes=", Qt::CaseInsensitive)) {
+                QString rangeStr = rangeHeader.mid(6);
+                QStringList parts = rangeStr.split("-");
+                if (!parts.isEmpty()) {
+                    if (!parts[0].isEmpty()) {
+                        startPos = parts[0].toLongLong();
+                    }
+                    if (parts.size() >= 2 && !parts[1].isEmpty()) {
+                        endPos = parts[1].toLongLong();
+                    }
+                }
+                isPartialContent = true;
+
+                // 校验请求范围是否合法
+                if (startPos >= fileSize) {
+                    QByteArray response = "HTTP/1.1 416 Range Not Satisfiable\r\n";
+                    response.append("Content-Range: bytes */" + QByteArray::number(fileSize) + "\r\n\r\n");
+                    socket->write(response);
+                    socket->disconnectFromHost();
+                    delete file;
+                    return;
+                }
+                if (endPos >= fileSize) {
+                    endPos = fileSize - 1;
+                }
+            }
+        }
+
+        qint64 contentLength = endPos - startPos + 1;
+        file->seek(startPos);
+        
+        // 动态分配堆内存追踪剩余字节和限速状态
+        struct DownloadState {
+            qint64 remaining = 0;
+            qint64 limitBytesPerSec = 1e6;
+            qint64 totalSent = 0;
+            QElapsedTimer timer;
+            QMetaObject::Connection connection;
+        };
+        auto state = std::make_shared<DownloadState>();
+        state->remaining = contentLength;
+        state->totalSent = 0;
+        state->limitBytesPerSec = params.value("speed", "0").toLongLong() * 1024;
+        state->timer.start();
+
         QByteArray response;
-        response.append("HTTP/1.1 200 OK\r\n");
+        if (isPartialContent) {
+            response.append("HTTP/1.1 206 Partial Content\r\n");
+            response.append("Content-Range: bytes " + QByteArray::number(startPos) + "-" + QByteArray::number(endPos) + "/" + QByteArray::number(fileSize) + "\r\n");
+        } else {
+            response.append("HTTP/1.1 200 OK\r\n");
+        }
         response.append("Access-Control-Allow-Origin: *\r\n");
-        response.append("Content-Type: audio/wav\r\n");
+        response.append("Content-Type: " + contentType.toUtf8() + "\r\n");
         response.append("Content-Disposition: attachment; filename=\"" + fileName.toUtf8() + "\"\r\n");
-        response.append("Content-Length: " + QByteArray::number(fileSize) + "\r\n");
-        response.append("Connection: close\r\n");
-        response.append("\r\n");
+        response.append("Content-Length: " + QByteArray::number(contentLength) + "\r\n");
+        response.append("Accept-Ranges: bytes\r\n");
+        response.append("Connection: close\r\n\r\n");
         socket->write(response);
 
-        QObject::connect(socket, &QTcpSocket::bytesWritten, file, [socket, file](qint64 bytes) {
+        auto sendNextChunk = std::make_shared<std::function<void()>>();
+        *sendNextChunk = [socket, file, state, sendNextChunk]() {
             if (!file->isOpen()) return;
-            if (!file->atEnd()) {
-                QByteArray chunk = file->read(64 * 1024);
-                socket->write(chunk);
-            } else {
-                file->close();
-                socket->disconnectFromHost();
-                file->deleteLater();
+
+            // 限制 Qt 发送缓冲区大小
+            if (socket->bytesToWrite() > 128 * 1024) return;
+
+            if (state->remaining <= 0) {
+                if (socket->bytesToWrite() == 0) {
+                    file->close();
+                    socket->disconnectFromHost();
+                    file->deleteLater();
+                    QObject::disconnect(state->connection);
+                    *sendNextChunk = nullptr;
+                }
+                return;
+            }
+
+            // 限速检查机制
+            if (state->limitBytesPerSec > 0 && state->totalSent > 0) {
+                qint64 expectedMs = (state->totalSent * 1000) / state->limitBytesPerSec;
+                qint64 actualMs = state->timer.elapsed();
+                if (actualMs < expectedMs) {
+                    QTimer::singleShot(expectedMs - actualMs, socket, *sendNextChunk);
+                    return;
+                }
+            }
+            qint64 maxChunk = 64 * 1024;
+            if (state->limitBytesPerSec > 0) {
+                maxChunk = qMax((qint64)1024, state->limitBytesPerSec / 10);
+            }
+            qint64 toRead = std::min(maxChunk, state->remaining);
+
+            QByteArray chunk = file->read(toRead);
+            state->remaining -= chunk.size();
+            state->totalSent += chunk.size();
+            socket->write(chunk);
+        };
+        // 触发下一次写入
+        state->connection = QObject::connect(socket, &QTcpSocket::bytesWritten, file, [sendNextChunk](qint64 bytes) {
+            if (*sendNextChunk) {
+                (*sendNextChunk)();
             }
         });
-
-        // 发送文件
-        if (!file->atEnd()) {
-            QByteArray chunk = file->read(64 * 1024);
-            socket->write(chunk);
-        } else {
-            file->close();
-            socket->disconnectFromHost();
-            file->deleteLater();
-        }
+        (*sendNextChunk)();
     }
 }

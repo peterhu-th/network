@@ -12,15 +12,10 @@ int main(int argc, char *argv[]) {
 
     qDebug() << "=== 后端独立集成测试 ===";
     {
-        // 1. 准备测试用的假文件
-        QString testDataPath = "./test_data";
+        // 1. 设置测试用的路径为开发环境真实路径
+        QString testDataPath = "./data";
         QDir().mkpath(testDataPath);
-        QFile wavFile(testDataPath + "/dummy.wav");
-        if (wavFile.open(QIODevice::WriteOnly)) {
-            wavFile.write("RIFF dummy wav content");
-            wavFile.close();
-        }
-        qDebug() << "[1/4] 已生成测试用的本地音频文件.";
+        qDebug() << "[1/4] 指向本地数据存储路径:" << testDataPath;
 
         // 2. 初始化 Controller
         AudioRecordController controller;

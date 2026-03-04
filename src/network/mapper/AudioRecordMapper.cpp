@@ -7,7 +7,6 @@ namespace radar::network {
     }
 
     AudioRecordMapper::~AudioRecordMapper() {
-        // 清理 Mock 存储
         m_records_map.clear();
         m_records_list.clear();
     }
@@ -16,8 +15,7 @@ namespace radar::network {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_records_map[record.id] = record;
         m_records_list.push_back(record);
-        
-        // 维持倒序排列 (ORDER BY generation_time DESC)
+        // 倒序排列
         std::sort(m_records_list.begin(), m_records_list.end(), [](const AudioRecord& a, const AudioRecord& b) {
             return a.generationTime > b.generationTime;
         });
@@ -54,9 +52,9 @@ namespace radar::network {
             results.push_back(record);
         }
         
-        // 执行分页切割 (Pagination)
+        // 分页切割
         if (offset >= results.size()) {
-            return Result<std::vector<AudioRecord>>::ok(std::vector<AudioRecord>()); // 偏移超过总数，返回空数组
+            return Result<std::vector<AudioRecord>>::ok(std::vector<AudioRecord>());
         }
         
         int endIdx = std::min(static_cast<int>(results.size()), offset + limit);

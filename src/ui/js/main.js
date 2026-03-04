@@ -61,18 +61,58 @@ function renderTable(dataArray) {
             <td>${item.fileSize}</td>
             <td>${item.generationTime}</td>
             <td>
-                <button class="download-btn" data-id="${item.id}">Download File</button>
+                <button class="download-wav-btn" data-id="${item.id}" style="margin-right: 5px;">WAV</button>
+                <button class="download-both-btn" data-id="${item.id}">WAV + JSON</button>
             </td>
         `;
         tableBody.appendChild(tr);
     });
 }
 
-// 采用事件委托 (Event Delegation) 统一管理点击事件，告别此前给每个 .download-btn 分配单独事件的做法以防内存泄漏
+// 辅助函数：通过隐式 a 标签，并注入 HTML5 download 属性来触发静默下载，不弹新窗口
+function triggerDownload(url, forcedFilename) {
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    // 不再使用 target="_blank"，因为连续弹出多窗口必被浏览器拦截
+    // 添加 download 属性强制声明这是一个下载动作
+    a.setAttribute('download', forcedFilename || 'download');
+
+    document.body.appendChild(a);
+    a.click();
+
+    // 延迟少许移除以确保浏览器成功捕获事件
+    setTimeout(() => {
+        document.body.removeChild(a);
+    }, 100);
+}
+
+function getSpeedParam() {
+    const input = document.getElementById('speedLimitInput');
+    const val = parseInt(input?.value) || 0;
+    return val > 0 ? `&speed=${val}` : '';
+}
+
 tableBody.addEventListener('click', (e) => {
-    if (e.target.classList.contains('download-btn')) {
+    if (e.target.classList.contains('download-wav-btn')) {
         const fileId = e.target.getAttribute('data-id');
-        window.open(getDownloadUrl(fileId), '_blank');
+        triggerDownload(getDownloadUrl(fileId) + getSpeedParam(), `record_${fileId}.wav`);
+    } else if (e.target.classList.contains('download-both-btn')) {
+        const fileId = e.target.getAttribute('data-id');
+        const speed = getSpeedParam();
+        const wavUrl = getDownloadUrl(fileId) + speed;
+        const jsonUrl = getDownloadUrl(fileId) + "&type=json" + speed;
+
+        // 通过间隔同步调用，并在内部加上 download 属性。
+        // 不加 target="_blank"，避免进入浏览器的恶意弹窗防御域 (Popup Blocker)。
+        // 加入 800ms 延时，确保第一个 WAV 请求的响应头 (Content-Disposition: attachment) 
+        // 已经返回并接管了当前页面的下载流控制器，此时再发第二个请求 JSON，
+        // 浏览器就不会因为“连续两次试图导航当前页面”而默认中断(Abort)掉第一次的 WAV 请求了。
+
+        triggerDownload(wavUrl, `record_${fileId}.wav`);
+        setTimeout(() => {
+            triggerDownload(jsonUrl, `record_${fileId}.json`);
+        }, 50);
     }
 });
 
