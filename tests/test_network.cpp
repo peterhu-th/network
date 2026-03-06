@@ -1,6 +1,5 @@
 #include <QCoreApplication>
 #include <QDir>
-#include <QFile>
 #include <QThread>
 #include "controller/AudioRecordController.h"
 
@@ -13,7 +12,7 @@ int main(int argc, char *argv[]) {
     qDebug() << "=== 后端独立集成测试 ===";
     {
         // 1. 设置测试用的路径为开发环境真实路径
-        QString testDataPath = "./data";
+        QString testDataPath = "D:/gitstore/Audio-Radar-Client/data";
         QDir().mkpath(testDataPath);
         qDebug() << "[1/4] 指向本地数据存储路径:" << testDataPath;
 
