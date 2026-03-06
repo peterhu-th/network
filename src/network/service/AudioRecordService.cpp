@@ -17,7 +17,7 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    void AudioRecordService::start() {
+    void AudioRecordService::start() const {
         if (m_fileIndexer) {
             auto res = m_fileIndexer->start(m_storagePath);
             if (!res.isOk()) {

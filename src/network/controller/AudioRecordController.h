@@ -14,15 +14,15 @@ namespace radar::network {
         explicit AudioRecordController(QObject *parent = nullptr);
         ~AudioRecordController() override;
         [[nodiscard]] Result<void> init(const QVariantMap& config);
-        [[nodiscard]] Result<void> start();
-        void stop();
+        [[nodiscard]] Result<void> start() const;
+        void stop() const;
     private:
         std::unique_ptr<AudioRecordService> m_service;
         std::unique_ptr<HttpServer> m_httpServer;
         int m_port = 8080;
         void setupRoutes();
         static bool checkAuthorization(QTcpSocket* socket, const QMap<QString, QString>& params, const QMap<QString, QString>& headers);
-        void handleListFiles(QTcpSocket* socket, const QMap<QString, QString>& params, const QMap<QString, QString>& headers);
+        void handleListFiles(QTcpSocket* socket, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) const;
         void handleDownload(QTcpSocket* socket, const QString& path, const QMap<QString, QString>& params, const QMap<QString, QString>& headers);
     };
 }

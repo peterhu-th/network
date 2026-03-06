@@ -49,7 +49,7 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    Result<void> FileIndexer::processFile(const QString &filePath) {
+    Result<void> FileIndexer::processFile(const QString &filePath) const {
         auto hasRes = m_dbManager->hasRecord(filePath);
         if (!hasRes.isOk()) {
             return Result<void>::error(hasRes.errorMessage(), hasRes.errorCode());

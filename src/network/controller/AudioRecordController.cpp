@@ -46,7 +46,7 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    Result<void> AudioRecordController::start() {
+    Result<void> AudioRecordController::start() const {
         m_service->start();
         auto res = m_httpServer->start(m_port);
         if (!res.isOk()) {
@@ -55,7 +55,7 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    void AudioRecordController::stop(){
+    void AudioRecordController::stop() const {
         if (m_httpServer) m_httpServer->close();
         if (QThreadPool::globalInstance()) {
             QThreadPool::globalInstance()->waitForDone();
@@ -94,7 +94,7 @@ namespace radar::network {
         return true;
     }
 
-    void AudioRecordController::handleListFiles(QTcpSocket* socket, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) {
+    void AudioRecordController::handleListFiles(QTcpSocket* socket, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) const {
         if (!checkAuthorization(socket, params, headers)) return;
         // 解析参数
         int limit = params.value("limit", "20").toInt();
@@ -295,7 +295,7 @@ namespace radar::network {
             }
             qint64 maxChunk = 64 * 1024;
             if (state->limitBytesPerSec > 0) {
-                maxChunk = qMax((qint64)1024, state->limitBytesPerSec / 10);
+                maxChunk = qMax(static_cast<qint64>(1024), state->limitBytesPerSec / 10);
             }
             qint64 toRead = std::min(maxChunk, state->remaining);
 

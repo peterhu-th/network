@@ -19,7 +19,7 @@ namespace radar::network {
         QString m_rootPath;
         QTimer* m_timer;
         [[nodiscard]] Result<void> scanDirectory(const QString& path);
-        [[nodiscard]] Result<void> processFile(const QString& filePath);
+        [[nodiscard]] Result<void> processFile(const QString& filePath) const;
         static AudioRecord parseMetadata(const QString& wavPath);
         static QDateTime getGenerationTime(const QString& jsonPath, const QString& wavPath);
     };
