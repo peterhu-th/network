@@ -52,3 +52,29 @@ th, td {
 th { color: #9cdcfe; font-weight: normal; }
 tr:hover { background-color: #2a2d2e; }
 .loading { text-align: center; color: #858585; }
+
+/* 移动端响应式表格优化 */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+#audioTable {
+    min-width: 600px;
+    width: 100%;
+}
+
+@media screen and (max-width: 768px) {
+    body {
+        font-size: 14px;
+        padding: 10px;
+    }
+
+    .pagination-controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+}

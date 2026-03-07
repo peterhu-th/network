@@ -1,5 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:8080/api';
-
+const BASE_URL = `http://${window.location.hostname}:8080/api`;
 const AUTH_TOKEN = 'user';
 
 export async function fetchAudioFiles(limit = 50, offset = 0) {

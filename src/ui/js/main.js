@@ -38,7 +38,6 @@ async function loadAndRenderData() {
             tableBody.innerHTML = `<tr><td colspan="5" class="loading" style="color:#f48771;">Error: ${result.message || 'Unknown Error'}</td></tr>`;
         }
     } catch (error) {
-        // 增加兜底异常捕获
         console.error("Data Fetch Exception:", error);
         tableBody.innerHTML = `<tr><td colspan="5" class="loading" style="color:#f48771;">Exception: ${error.message}</td></tr>`;
     }
@@ -56,16 +55,12 @@ function renderTable(dataArray) {
 
     dataArray.forEach(item => {
         const tr = document.createElement('tr');
-
-        // 【修复 1：全面解析并格式化后端字段，同时兼容不同的后端键名】
         const id = item.id || 'N/A';
         const filePath = item.filePath || item.path || 'Unknown';
-
-        // 解析容量 (Byte -> KB)
+        const extMatch = filePath.match(/\.[0-9a-z]+$/i);
+        const ext = extMatch ? extMatch[0] : '.wav';
         const rawSize = parseInt(item.fileSize || item.size || 0, 10);
         const sizeStr = !isNaN(rawSize) ? (rawSize / 1024).toFixed(2) + ' KB' : '0 KB';
-
-        // 解析时间 (ISO String/Timestamp -> Local Datetime)
         const rawTime = item.generationTime || item.created_at || '';
         const timeStr = rawTime ? new Date(rawTime).toLocaleString() : 'Unknown';
 
@@ -75,8 +70,7 @@ function renderTable(dataArray) {
             <td>${sizeStr}</td>
             <td>${timeStr}</td>
             <td>
-                <button class="download-wav-btn" data-id="${id}" style="margin-right: 5px;">WAV</button>
-                <button class="download-both-btn" data-id="${id}">WAV + JSON</button>
+                <button class="download-wav-btn" data-id="${id}" data-time="${rawTime}" style="margin-right: 5px;">WAV</button>
             </td>
         `;
         tableBody.appendChild(tr);
@@ -104,20 +98,30 @@ function getSpeedParam() {
     return val > 0 ? `&speed=${val}` : '';
 }
 
+function formatFileNameTime(rawTime) {
+    if (!rawTime) return `record_${Date.now()}`;
+
+    const date = new Date(rawTime);
+    if (isNaN(date.getTime())) return `record_${Date.now()}`;
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+
+    return `${year}年${month}月${day}日${hours}时${minutes}分${seconds}秒`;
+}
+
 tableBody.addEventListener('click', (e) => {
     if (e.target.classList.contains('download-wav-btn')) {
         const fileId = e.target.getAttribute('data-id');
-        triggerDownload(getDownloadUrl(fileId) + getSpeedParam(), `record_${fileId}.wav`);
-    } else if (e.target.classList.contains('download-both-btn')) {
-        const fileId = e.target.getAttribute('data-id');
-        const speed = getSpeedParam();
-        const wavUrl = getDownloadUrl(fileId) + speed;
-        const jsonUrl = getDownloadUrl(fileId) + "&type=json" + speed;
+        const rawTime = e.target.getAttribute('data-time');
+        const ext = e.target.getAttribute('data-ext');
+        const fileName = formatFileNameTime(rawTime);
 
-        triggerDownload(wavUrl, `record_${fileId}.wav`);
-        setTimeout(() => {
-            triggerDownload(jsonUrl, `record_${fileId}.json`);
-        }, 50);
+        triggerDownload(getDownloadUrl(fileId) + getSpeedParam(), `${fileName}${ext}`);
     }
 });
 
@@ -128,7 +132,6 @@ function renderPagination() {
     nextPageBtn.disabled = currentPage >= totalPages;
 }
 
-// 【修复 2：所有调用 async 函数的地方加入 await 和 catch，防止 Promise 被忽略抛出异常】
 prevPageBtn.addEventListener('click', async () => {
     if (currentPage > 1) {
         currentPage--;
@@ -149,5 +152,4 @@ refreshBtn.addEventListener('click', async () => {
     await loadAndRenderData().catch(console.error);
 });
 
-// 网页一打开，立刻请求第一页，并挂载全局异常捕获
 loadAndRenderData().catch(console.error);

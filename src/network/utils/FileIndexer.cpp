@@ -38,7 +38,7 @@ namespace radar::network {
     }
 
     Result<void> FileIndexer::scanDirectory(const QString &path) {
-        QDirIterator it(path, QStringList() << "*.wav", QDir::Files, QDirIterator::Subdirectories);
+        QDirIterator it(path, QStringList() << "*.wav" << "*.mp3" << "*.m4a", QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
             QString filePath = it.next();
             auto res = processFile(filePath);
@@ -69,19 +69,19 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    AudioRecord FileIndexer::parseMetadata(const QString &wavPath) {
+    AudioRecord FileIndexer::parseMetadata(const QString &audioPath) {
         AudioRecord record;
-        record.filePath = wavPath;
-        record.fileSize = QFileInfo(wavPath).size();
+        record.filePath = audioPath;
+        record.fileSize = QFileInfo(audioPath).size();
         record.duration = 0;    //TODO: 读取 wav 文件获取时长
-        QString jsonPath = wavPath;
-        jsonPath.replace(".wav", ".json");
-        record.generationTime = getGenerationTime(jsonPath, wavPath);
+        QFileInfo fileInfo(audioPath);
+        QString jsonPath = fileInfo.absolutePath() + "/" + fileInfo.completeBaseName() + ".json";
+        record.generationTime = getGenerationTime(jsonPath, audioPath);
         record.createdAt = QDateTime::currentDateTime();
         return record;
     }
 
-    QDateTime FileIndexer::getGenerationTime(const QString &jsonPath, const QString &wavPath) {
+    QDateTime FileIndexer::getGenerationTime(const QString &jsonPath, const QString &audioPath) {
         QFile jsonFile(jsonPath);
         if (jsonFile.open(QIODevice::ReadOnly)) {
             QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll());
@@ -96,6 +96,6 @@ namespace radar::network {
                 }
             }
         }
-        return QFileInfo(wavPath).lastModified();
+        return QFileInfo(audioPath).lastModified();
     }
 }

@@ -27,7 +27,7 @@ namespace radar::network {
             dbConfig.port = dbMap.value("port", 5432).toInt();
             dbConfig.username = dbMap.value("user", "postgres").toString();
             dbConfig.password = dbMap.value("pass", "").toString();
-            dbConfig.dbName = dbMap.value("name", "circle").toString();
+            dbConfig.dbName = dbMap.value("name", "audio").toString();
         }
         QString storagePath = ".";
         if (config.contains("storage")) {
@@ -153,6 +153,7 @@ namespace radar::network {
     }
 
     void AudioRecordController::handleDownload(QTcpSocket* socket, const QString& path, const QMap<QString, QString>& params, const QMap<QString, QString>& headers) {
+        if (!AudioRecordController::checkAuthorization(socket, params, headers)) return;
         if (!params.contains("id")) {
             QByteArray response = "HTTP/1.1 400 Bad Request\r\n\r\nMissing 'id' parameter";
             socket->write(response);
@@ -169,18 +170,16 @@ namespace radar::network {
             return;
         }
 
-        // 在本地打开音频文件或其关联的 JSON 元数据文件
+        // 在本地打开音频文件
         QString filePath = recordRes.value().filePath;
-        QString contentType = "audio/wav";
-        if (params.value("type") == "json") {
-            if (filePath.endsWith(".wav", Qt::CaseInsensitive)) {
-                filePath.replace(filePath.length() - 4, 4, ".json");
-            } else {
-                filePath += ".json";
-            }
-            contentType = "application/json; charset=utf-8";
+        QString contentType = "application/octet-stream";
+        if (filePath.endsWith(".wav", Qt::CaseInsensitive)) {
+            contentType = "audio/wav";
+        } else if (filePath.endsWith(".mp3", Qt::CaseInsensitive)) {
+            contentType = "audio/mpeg";
+        } else if (filePath.endsWith(".m4a", Qt::CaseInsensitive)) {
+            contentType = "audio/mp4";
         }
-        
         qDebug() << "[Downloader] Attempting to open file at path:" << filePath << " for type=" << params.value("type");
 
         auto* file = new QFile(filePath);
