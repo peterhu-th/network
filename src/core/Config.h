@@ -20,6 +20,7 @@ public:
     QVariantMap storageConfig() const;
     QVariantMap networkConfig() const;
     QVariantMap databaseConfig() const;
+	QString authToken() const;
 
 private:
     Config() = default;

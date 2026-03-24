@@ -7,6 +7,7 @@
 #include "../utils/FileIndexer.h"
 #include "mapper/AudioRecordMapper.h"
 
+// 服务层，初始化数据库链接池，分页查询和计数
 namespace radar::network {
     class AudioRecordService : public QObject {
         Q_OBJECT

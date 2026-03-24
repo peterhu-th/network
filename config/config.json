@@ -3,14 +3,15 @@
         "type": "system",
         "sampleRate": 44100,
         "channels": 1,
-        "bitsPerSample": 16,
+        "sampleSize": 16,
         "device": "default"
     },
     "storage": {
         "path": "./data"
     },
     "network": {
-        "port": 8080
+        "port": 8080,
+        "auth_token": "radar"
     },
     "database": {
         "host": "127.0.0.1",

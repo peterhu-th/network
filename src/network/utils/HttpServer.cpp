@@ -34,12 +34,11 @@ namespace radar::network {
         connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
     }
 
-    // 这个看不懂，AI写的
     void HttpServer::parseRequest(QTcpSocket *socket) {
         if (!socket->canReadLine()) return;
         // 读取请求
         QString requestLine = QString::fromUtf8(socket->readLine()).trimmed();
-        QStringList parts = requestLine.split(' ');
+        QStringList parts = requestLine.split(' '); // 按空格拆分
         if (parts.size() < 2) {
             socket->disconnectFromHost();
             return;
@@ -62,7 +61,7 @@ namespace radar::network {
             QByteArray response;
             // 返回 204 No Content，允许跨域和自定义 Header
             response.append("HTTP/1.1 204 No Content\r\n");
-            response.append("Access-Control-Allow-Origin: *\r\n");
+            response.append("Access-Control-Allow-Origin: *\r\n");  // 允许跨域
             response.append("Access-Control-Allow-Methods: GET, OPTIONS\r\n");
             response.append("Access-Control-Allow-Headers: Authorization, Range\r\n\r\n");
             response.append("Connection: close\r\n\r\n");

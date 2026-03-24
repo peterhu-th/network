@@ -10,10 +10,9 @@ namespace radar {
 
 struct AudioFrame {
     int64_t timestamp = 0;
-    int sampleRate = 0;
-    int channels = 0;
-    int sampleSize = 0;
-    int bitsPerSample = 16;
+    int sampleRate = 44100;
+    int channels = 1;
+    int sampleSize = 16;
     QByteArray data;
     QString sourceId;
 };

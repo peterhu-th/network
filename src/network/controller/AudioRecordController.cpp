@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <algorithm>
 #include "AudioRecordController.h"
+#include "../core/Config.h"
 
 namespace radar::network {
     AudioRecordController::AudioRecordController(QObject* parent) : QObject(parent) {
@@ -82,7 +83,8 @@ namespace radar::network {
             token.replace("bearer", "", Qt::CaseInsensitive);
             token = token.trimmed();
         }
-        if (token != "user") {
+        QString expectedToken = radar::Config::instance().authToken();
+        if (token != expectedToken) {
             QByteArray response = "HTTP/1.1 401 Unauthorized\r\n"
                                   "Access-Control-Allow-Origin: *\r\n"
                                   "Content-Type: application/json; charset=utf-8\r\n\r\n"

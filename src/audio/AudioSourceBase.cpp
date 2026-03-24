@@ -12,7 +12,7 @@ namespace radar::audio {
         //若未读取成功则采用默认数值
         m_sampleRate = configMap.value("sampleRate", 44100).toInt();
         m_channels = configMap.value("channels", 1).toUInt();
-        m_sampleSize = configMap.value("bitsPerSample", 16).toUInt();
+        m_sampleSize = configMap.value("sampleSize", 16).toUInt();
         m_startTime = 0;
     }
 

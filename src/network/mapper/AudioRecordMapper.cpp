@@ -38,6 +38,7 @@ namespace radar::network {
         QSqlQuery query(db);
         query.prepare("INSERT INTO audio_records (id, file_path, generation_time, duration, file_size) "
                       "VALUES (:id, :file_path, :generation_time, :duration, :size)");
+        // 使用键值绑定防止注入
         query.bindValue(":id", QVariant::fromValue(record.id));
         query.bindValue(":file_path", record.filePath);
         query.bindValue(":generation_time", record.generationTime);
