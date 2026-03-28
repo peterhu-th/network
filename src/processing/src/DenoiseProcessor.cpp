@@ -1,6 +1,8 @@
 #include "../include/DenoiseProcessor.h"
 #include <algorithm>
 
+// 带通滤波处理器 - 简化版（仅保留滤波功能）
+
 namespace radar {
 
     DenoiseProcessor::DenoiseProcessor(double lowCutoff, double highCutoff, int sampleRate)
