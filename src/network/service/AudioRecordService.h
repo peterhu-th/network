@@ -13,10 +13,9 @@ namespace radar::network {
         Q_OBJECT
     public:
         explicit AudioRecordService(QObject *parent = nullptr);
-        ~AudioRecordService() override;
+        ~AudioRecordService() override = default;
         [[nodiscard]] Result<void> init(const DatabaseConfig& dbConfig, const QString& storagePath);
         void start() const;
-        void stop();
         [[nodiscard]] Result<std::vector<AudioRecord>> getRecordPage(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) const;
         [[nodiscard]] Result<int> getTotalCount(const QDateTime& startTime, const QDateTime& endTime) const;
         [[nodiscard]] Result<AudioRecord> getRecordById(int64_t id) const;

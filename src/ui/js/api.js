@@ -25,3 +25,18 @@ export async function fetchAudioFiles(limit = 50, offset = 0) {
 export function getDownloadUrl(id) {
     return `${BASE_URL}/download?id=${id}&token=${AUTH_TOKEN}`;
 }
+
+export async function downloadAudioFile(id, speed = 0) {
+    let url = `${BASE_URL}/download?id=${id}`;
+    if (speed > 0) url += `&speed=${speed}`;
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` } // 将 Token 放在请求头
+    });
+
+    if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+    }
+    return await response.blob(); // 返回二进制大对象
+}

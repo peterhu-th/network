@@ -10,7 +10,7 @@
 
 // HTTP 服务器，监听本地端口，接收并解析前端 TCP 字节流；调用业务函数
 namespace radar::network {
-    // 定义函数容器
+    // 定义函数指针
     using RequestHandler = std::function<void(
         QTcpSocket* socket,
         const QString& path,
@@ -23,7 +23,7 @@ namespace radar::network {
     public:
         explicit HttpServer(QObject* parent = nullptr);
         void route(const QString& path, const RequestHandler& handler); // 注册路由
-        Result<void> start(uint16_t port);
+        Result<void> start(const QHostAddress& address, uint16_t port);
     protected:
         void incomingConnection(qintptr socketDescriptor) override;
     private:

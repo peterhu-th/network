@@ -6,10 +6,7 @@
 namespace radar::network {
     AudioRecordService::AudioRecordService(QObject *parent): QObject(parent) {}
 
-    AudioRecordService::~AudioRecordService() {
-        stop();
-    }
-
+    // 建立数据库连接池
     Result<void> AudioRecordService::init(const DatabaseConfig& dbConfig, const QString& storagePath) {
         m_storagePath = storagePath;
         m_globalConnectionName = "Audio_GlobalPool";
@@ -40,8 +37,6 @@ namespace radar::network {
             }
         }
     }
-
-    void AudioRecordService::stop() {}
 
     Result<std::vector<AudioRecord> > AudioRecordService::getRecordPage(const QDateTime &startTime, const QDateTime &endTime, int limit, int offset) const {
         return m_mapper->queryRecords(startTime, endTime, limit, offset);

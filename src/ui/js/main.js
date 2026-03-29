@@ -114,14 +114,32 @@ function formatFileNameTime(rawTime) {
     return `${year}年${month}月${day}日${hours}时${minutes}分${seconds}秒`;
 }
 
-tableBody.addEventListener('click', (e) => {
+tableBody.addEventListener('click', async (e) => {
     if (e.target.classList.contains('download-wav-btn')) {
-        const fileId = e.target.getAttribute('data-id');
-        const rawTime = e.target.getAttribute('data-time');
-        const ext = e.target.getAttribute('data-ext');
-        const fileName = formatFileNameTime(rawTime);
+        const btn = e.target;
+        btn.disabled = true;
+        btn.innerText = "Downloading...";
 
-        triggerDownload(getDownloadUrl(fileId) + getSpeedParam(), `${fileName}${ext}`);
+        try {
+            const fileId = btn.getAttribute('data-id');
+            const rawTime = btn.getAttribute('data-time');
+            const ext = btn.getAttribute('data-ext') || '.wav';
+            const fileName = formatFileNameTime(rawTime);
+            const input = document.getElementById('speedLimitInput');
+            const speed = parseInt(input?.value) || 0;
+
+            const blob = await downloadAudioFile(fileId, speed);
+
+            const blobUrl = window.URL.createObjectURL(blob);
+            triggerDownload(blobUrl, `${fileName}${ext}`);
+            window.URL.revokeObjectURL(blobUrl);
+
+        } catch (error) {
+            alert("Failed to download file: " + error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "WAV";
+        }
     }
 });
 

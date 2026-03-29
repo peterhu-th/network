@@ -10,8 +10,9 @@
         "path": "./data"
     },
     "network": {
+        "bindAddress": "127.0.0.1",
         "port": 8080,
-        "auth_token": "radar"
+        "authToken": "radar"
     },
     "database": {
         "host": "127.0.0.1",

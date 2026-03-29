@@ -20,7 +20,7 @@ namespace radar::network {
         int port = 5432;                // PostgreSQL 默认端口号
         QString dbName = "audio";
         QString username = "postgres";
-        QString password = "6";
+        QString password = "";
     };
 }
 

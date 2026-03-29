@@ -13,12 +13,12 @@ namespace radar::network {
     public:
         explicit FileIndexer(AudioRecordMapper* dbManager, QObject* parent = nullptr);
         Result<void> start(const QString& rootPath, int intervalMs = 600000);    // 每 10 分钟查询一次
-        [[nodiscard]] Result<void> scan();
+        [[nodiscard]] Result<void> scan() const;
     private:
         AudioRecordMapper* m_dbManager;
         QString m_rootPath;
         QTimer* m_timer;
-        [[nodiscard]] Result<void> scanDirectory(const QString& path);
+        [[nodiscard]] Result<void> scanDirectory(const QString& path) const;
         [[nodiscard]] Result<void> processFile(const QString& filePath) const;
         static AudioRecord parseMetadata(const QString& audioPath);
         static QDateTime getGenerationTime(const QString& jsonPath, const QString& audioPath);

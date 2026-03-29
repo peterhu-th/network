@@ -5,8 +5,8 @@
 namespace radar::network {
     HttpServer::HttpServer(QObject *parent) : QTcpServer(parent) {}
 
-    Result<void> HttpServer::start(uint16_t port) {
-        if (this->listen(QHostAddress::Any, port)) {
+    Result<void> HttpServer::start(const QHostAddress& address, uint16_t port) {
+        if (this->listen(address, port)) {
             qDebug() << "HttpServer started on port" << port;
             return Result<void>::ok();
         }
@@ -36,7 +36,7 @@ namespace radar::network {
 
     void HttpServer::parseRequest(QTcpSocket *socket) {
         if (!socket->canReadLine()) return;
-        // 读取请求
+        // 读取请求头至空行
         QString requestLine = QString::fromUtf8(socket->readLine()).trimmed();
         QStringList parts = requestLine.split(' '); // 按空格拆分
         if (parts.size() < 2) {
@@ -56,12 +56,11 @@ namespace radar::network {
                 headers[key] = value;
             }
         }
-        // 校验请求方法
+        // 校验请求方法，允许跨域，拦截非 OPTION 和 GET 请求
         if (method == "OPTIONS") {
             QByteArray response;
-            // 返回 204 No Content，允许跨域和自定义 Header
             response.append("HTTP/1.1 204 No Content\r\n");
-            response.append("Access-Control-Allow-Origin: *\r\n");  // 允许跨域
+            response.append("Access-Control-Allow-Origin: *\r\n");
             response.append("Access-Control-Allow-Methods: GET, OPTIONS\r\n");
             response.append("Access-Control-Allow-Headers: Authorization, Range\r\n\r\n");
             response.append("Connection: close\r\n\r\n");
@@ -82,6 +81,7 @@ namespace radar::network {
         if (!query.isEmpty()) {
             params = parseQueryParams(query);
         }
+        // 路由分发
         bool handled = false;
         for (auto it = m_routes.begin(); it != m_routes.end(); ++it) {
             if (path.startsWith(it.key())) {

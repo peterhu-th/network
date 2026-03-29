@@ -35,7 +35,10 @@ namespace radar::network {
             storagePath = config["storage"].toMap().value("path", ".").toString();
         }
         if (config.contains("network")) {
-            m_port = config["network"].toMap().value("port", 8080).toInt();
+            QVariantMap netMap = config["network"].toMap();
+            m_port = netMap.value("port", 8080).toInt();
+            QString ipStr = netMap.value("bindAddress", "127.0.0.1").toString();
+            m_bindAddress = QHostAddress(ipStr);
         }
         // 初始化 Service
         auto res = m_service->init(dbConfig, storagePath);
@@ -49,7 +52,7 @@ namespace radar::network {
 
     Result<void> AudioRecordController::start() const {
         m_service->start();
-        auto res = m_httpServer->start(m_port);
+        auto res = m_httpServer->start(m_bindAddress, m_port);
         if (!res.isOk()) {
             return Result<void>::error("HttpServer error: " + res.errorMessage(), res.errorCode());
         }
@@ -61,7 +64,6 @@ namespace radar::network {
         if (QThreadPool::globalInstance()) {
             QThreadPool::globalInstance()->waitForDone();
         }
-        if (m_service) m_service->stop();
     }
 
     void AudioRecordController::setupRoutes() {
@@ -76,9 +78,7 @@ namespace radar::network {
 
     bool AudioRecordController::checkAuthorization(QTcpSocket *socket, const QMap<QString, QString> &params, const QMap<QString, QString> &headers) {
         QString token;
-        if (params.contains("token")) {
-            token = params["token"];
-        } else if (headers.contains("authorization")) {
+        if (headers.contains("authorization")) {
             token = headers.value("authorization");
             token.replace("bearer", "", Qt::CaseInsensitive);
             token = token.trimmed();
@@ -128,7 +128,6 @@ namespace radar::network {
             for (const auto& record : recordsRes.value()) {
                 QJsonObject recordObj;
                 recordObj["id"] = QString::number(record.id);
-                recordObj["filePath"] = record.filePath;
                 recordObj["duration"] = record.duration;
                 recordObj["fileSize"] = QString::number(record.fileSize);
                 recordObj["generationTime"] = record.generationTime.toString(Qt::ISODate);

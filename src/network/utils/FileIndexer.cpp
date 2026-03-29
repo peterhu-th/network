@@ -30,14 +30,15 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    Result<void> FileIndexer::scan() {
+    Result<void> FileIndexer::scan() const{
         if (m_rootPath.isEmpty()) {
             return Result<void>::error("Path does not exist", ErrorCode::InvalidConfig);
         }
         return scanDirectory(m_rootPath);
     }
 
-    Result<void> FileIndexer::scanDirectory(const QString &path) {
+    Result<void> FileIndexer::scanDirectory(const QString &path) const{
+        // 递归搜索子目录
         QDirIterator it(path, QStringList() << "*.wav" << "*.mp3" << "*.m4a", QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
             QString filePath = it.next();
@@ -50,6 +51,7 @@ namespace radar::network {
     }
 
     Result<void> FileIndexer::processFile(const QString &filePath) const {
+        // 查重
         auto hasRes = m_dbManager->hasRecord(filePath);
         if (!hasRes.isOk()) {
             return Result<void>::error(hasRes.errorMessage(), hasRes.errorCode());
@@ -57,12 +59,15 @@ namespace radar::network {
         if (hasRes.value()) {
             return Result<void>::ok();
         }
+        // 提取元数据
         AudioRecord record = parseMetadata(filePath);
+        // 分配 ID
         auto idRes = IdGenerator::instance().nextId();
         if (!idRes.isOk()) {
             return Result<void>::error(idRes.errorMessage(), idRes.errorCode());
         }
         record.id = idRes.value();
+        // 写入数据库
         if (auto res = m_dbManager->insertRecord(record); !res.isOk()) {
             return res;
         }
@@ -80,7 +85,7 @@ namespace radar::network {
         record.createdAt = QDateTime::currentDateTime();
         return record;
     }
-
+    // 若 json 文件中无信息则使用操作系统记录的最后修改时间
     QDateTime FileIndexer::getGenerationTime(const QString &jsonPath, const QString &audioPath) {
         QFile jsonFile(jsonPath);
         if (jsonFile.open(QIODevice::ReadOnly)) {

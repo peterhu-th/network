@@ -55,7 +55,7 @@ QVariantMap Config::databaseConfig() const {
 }
 
 QString Config::authToken() const {
-    return networkConfig().value("auth_token", "radar").toString();
+    return networkConfig().value("authToken", "").toString();
 }
 
 }
