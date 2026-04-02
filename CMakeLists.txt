@@ -7,8 +7,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Qt5
-find_package(Qt5 REQUIRED COMPONENTS Core Network Sql Widgets)
+# Qt6
+find_package(Qt6 REQUIRED COMPONENTS Core Network Sql HttpServer Widgets)
 
 # modules
 add_subdirectory(src/core)
@@ -31,10 +31,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     # storage
     network
     # ui
-    Qt5::Core
-    Qt5::Network
-    Qt5::Sql
-    Qt5::Widgets
+    Qt6::Core
+    Qt6::Network
+    Qt6::Sql
+    Qt6::Widgets
 )
 
 # copy config

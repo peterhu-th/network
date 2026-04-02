@@ -9,16 +9,20 @@
     "storage": {
         "path": "./data"
     },
-    "network": {
-        "bindAddress": "127.0.0.1",
-        "port": 8080,
-        "authToken": "radar"
-    },
     "database": {
+        "type": "QPSQL",
         "host": "127.0.0.1",
         "port": 5432,
-        "user": "postgres",
-        "pass": "6",
-        "name": "audio"
+        "dbName": "audio",
+        "username": "postgres",
+        "passWord": "6",
+        "storagePath": "D:/gitstore/Audio-Radar-Client/data",
+        "ffprobePath": "D:/gitstore/Audio-Radar-Client/tools/ffprobe.exe"
+    },
+    "network": {
+        "bindAddress": "0.0.0.0",
+        "port": 8080,
+        "serverSecret": "RADAR_SECRET_KEY_2026",
+        "globalConnectionName": "Audio_GlobalPool"
     }
 }

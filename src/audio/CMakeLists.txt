@@ -1,6 +1,6 @@
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt5 COMPONENTS Network Multimedia REQUIRED)
+find_package(Qt6 COMPONENTS Network Multimedia REQUIRED)
 
 add_library(audio STATIC
         IAudioSource.h
@@ -11,4 +11,4 @@ add_library(audio STATIC
 
 target_include_directories(audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(audio PUBLIC core Qt5::Network Qt5::Multimedia)
+target_link_libraries(audio PUBLIC core Qt6::Network Qt6::Multimedia)

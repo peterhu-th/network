@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QVariantMap>
+#include "../network/NetworkDTO.h"
 
 namespace radar {
 
@@ -18,13 +19,15 @@ public:
 
     QVariantMap audioConfig() const;
     QVariantMap storageConfig() const;
-    QVariantMap networkConfig() const;
-    QVariantMap databaseConfig() const;
+    network::NetworkConfig networkConfig() const;
+    network::DatabaseConfig databaseConfig() const;
 	QString authToken() const;
 
 private:
     Config() = default;
     QVariantMap m_config;
+    network::DatabaseConfig m_dbConfig;
+    network::NetworkConfig m_netConfig;
 };
 
 }

@@ -1,7 +1,7 @@
-#include "Config.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include "Config.h"
 
 namespace radar {
 
@@ -21,8 +21,25 @@ bool Config::load(const QString& path) {
     if (error.error != QJsonParseError::NoError) {
         return false;
     }
-
+    QJsonObject rootObj = doc.object();
     m_config = doc.object().toVariantMap();
+
+    QJsonObject dbObj = rootObj["database"].toObject();
+    m_dbConfig.type = dbObj["type"].toString("QPSQL");
+    m_dbConfig.host = dbObj["host"].toString("127.0.0.1");
+    m_dbConfig.port = dbObj["port"].toInt(5432);
+    m_dbConfig.dbName = dbObj["dbName"].toString("audio");
+    m_dbConfig.username = dbObj["username"].toString("postgres");
+    m_dbConfig.passWord = dbObj["passWord"].toString();
+    m_dbConfig.storagePath = dbObj["storagePath"].toString("./data");
+    m_dbConfig.ffprobePath = dbObj["ffprobePath"].toString("./tools/ffprobe.exe");
+
+    QJsonObject netObj = rootObj["network"].toObject();
+    m_netConfig.bindAddress = netObj["bindAddress"].toString("127.0.0.1");
+    m_netConfig.port = netObj["port"].toInt(8080);
+    m_netConfig.serverSecret = netObj["serverSecret"].toString("RADAR_SECRET_KEY_2026");
+    m_netConfig.globalConnectionName = netObj["globalConnectionName"].toString("Audio_GlobalPool");
+
     return true;
 }
 
@@ -46,16 +63,16 @@ QVariantMap Config::storageConfig() const {
     return m_config.value("storage").toMap();
 }
 
-QVariantMap Config::networkConfig() const {
-    return m_config.value("network").toMap();
+network::NetworkConfig Config::networkConfig() const {
+    return m_netConfig;
 }
 
-QVariantMap Config::databaseConfig() const {
-    return m_config.value("database").toMap();
+network::DatabaseConfig Config::databaseConfig() const {
+    return m_dbConfig;
 }
 
 QString Config::authToken() const {
-    return networkConfig().value("authToken", "").toString();
+    return m_netConfig.serverSecret;
 }
 
 }

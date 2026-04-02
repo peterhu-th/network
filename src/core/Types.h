@@ -33,6 +33,7 @@ struct SourceConfig {
 
 enum class ErrorCode {
     Success = 0,
+    
     AudioReadFailed = 1001, //暂时未使用
     AudioDeviceNotFound = 1002,
     AudioDeviceInitFailed = 1003,
@@ -53,9 +54,13 @@ enum class ErrorCode {
     InvalidConfig = 4006,
     ConfigMissingField = 4007,
     DatabaseQueryFailed = 4008,
-    NetworkFileIoFailed = 4009,
+    NetworkFileIOFailed = 4009,
     RecordNotFound = 4010,
-    HttpServerError = 4011
+    HttpServerError = 4011,
+    AuthorizationFailed = 4012,
+    FileNotExist = 4013,
+    InvalidParam = 4014,
+    ToolsError = 4015
 };
 
 template<typename T>

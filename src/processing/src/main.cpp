@@ -11,7 +11,7 @@ void testProcessingPipeline() {
     testFrame.timestamp = 1738612345678;
     testFrame.sampleRate = 16000;
     testFrame.channels = 1;
-    testFrame.bitsPerSample = 16;
+    testFrame.sampleSize = 16;
     testFrame.data = QByteArray(3200, 0);
     testFrame.sourceId = "mic_001";
 
