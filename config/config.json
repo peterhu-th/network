@@ -3,9 +3,26 @@
         "type": "system",
         "sampleRate": 44100,
         "channels": 1,
-        "bitsPerSample": 16,
+        "sampleSize": 16,
         "device": "default"
     },
-    "storage": {},
-    "network": {}
+    "storage": {
+        "path": "./data"
+    },
+    "database": {
+        "type": "QPSQL",
+        "host": "127.0.0.1",
+        "port": 5432,
+        "dbName": "audio",
+        "username": "postgres",
+        "passWord": "6",
+        "storagePath": "D:/gitstore/Audio-Radar-Client/data",
+        "ffprobePath": "D:/gitstore/Audio-Radar-Client/tools/ffprobe.exe"
+    },
+    "network": {
+        "bindAddress": "0.0.0.0",
+        "port": 8080,
+        "serverSecret": "RADAR_SECRET_KEY_2026",
+        "globalConnectionName": "Audio_GlobalPool"
+    }
 }

@@ -36,7 +36,6 @@ namespace radar::network {
         // 自动上锁解锁，保证线程安全
         std::lock_guard<std::mutex> lock(m_mutex);
         int64_t timestamp = currentTimestamp();
-        // 防止时间倒退
         if (timestamp < m_lastTimestamp) {
             return Result<int64_t>::error("Clock moved backwards. Refusing to generate ID", ErrorCode::InvalidState);
         }

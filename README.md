@@ -2,18 +2,20 @@
 
 ## 概述
 
-雷达音频信号采集客户端。从传感器接收音频数据，处理后上传至后端和大模型。
+雷达音频信号采集客户端。从系统音频线接收 PCM 数据，经 Audio/Processing 处理后写入本地存储，并由本地网络服务提供下载能力（不上传服务器）。
 
 ## 项目结构
 
 ```
 src/
-├── main.cpp           # 程序入口
-├── core/              # 基础框架（已实现）
-├── audio/             # 音频采集（待开发）
-├── processing/        # 信号处理（待开发）
+├── main.cpp           # 程序入口（加载 config，创建 Audio/Processing）
+├── core/              # 基础框架（Config/Logger/Types）
+├── audio/             # 已实现：系统音频采集 + AudioSourceFactory
+├── processing/        # 已实现：Processor/Pipeline/Service/Factory
 ├── storage/           # 本地存储（待开发）
-└── network/           # 网络通信（待开发）
+└── network/           # 本地网络服务（待开发）
+config/
+tests/
 ```
 
 ## 构建
@@ -29,9 +31,9 @@ make
 ## 数据流
 
 ```
-传感器 → Audio → Processing → Storage → Network → Go API
-            │          │           │          │
-        AudioFrame  ProcessedData  FilePath  HTTPS
+系统音频线 → Audio → Processing → Storage → Network
+                │          │           │          │
+            AudioFrame  ProcessedData  FilePath  Download API
 ```
 
 ---
@@ -40,7 +42,7 @@ make
 
 ### Core 模块（已实现）
 
-所有模块的基础设施。
+基础类型与配置/日志支持。
 
 **公共数据结构（Types.h）：**
 
@@ -76,34 +78,31 @@ class Result {
 
 ---
 
-### Audio 模块（待开发）
+### Audio 模块（已实现）
 
-**职责：** 负责连接数据源并产出标准化的音频帧。
+**职责：** 连接系统音频输入并产出标准化音频帧。
 
-**功能需求：**
-1.  **多协议支持**: 需支持通过 TCP 或 UDP 接收原始 PCM 数据流（具体协议由配置决定）。
-2.  **数据封装**: 将接收到的字节流封装为 `radar::AudioFrame` 结构，包含正确的时间戳和音频参数（采样率、通道等）。
-3.  **断线重连**: 在连接断开时应具备自动重连机制。
-4.  **错误处理**: 能够识别网络超时或格式错误，并上报状态。
+**现有实现：**
+1. **IAudioSource/AudioSourceBase**：音频源接口与基础类（状态管理/采样参数）
+2. **SystemAudioSource**：基于 Qt `QAudioInput` 的系统音频采集
+3. **AudioSourceFactory**：根据 `config.audio.type` 选择实现（当前仅 `system`）
 
-**输入：** 传感器数据流
+**输入：** 系统音频线 PCM
 **输出：** `AudioFrame`
-基类：
-factory管理两种数据，实现包含两种数据，单独文件管理数据的生命周期，返回类
-单独变量管理状态，描述变量，是否连接上，是否正常运行……
 
 
 ---
 
-### Processing 模块（待开发）
+### Processing 模块（已实现）
 
-**职责：** 清洗数据，识别有效信号。
+**职责：** 对 `AudioFrame` 做流水线处理并生成 `ProcessedData`。
 
-**功能需求：**
-1.  **流水线设计**: 支持多种处理器串行工作（例如：先降噪，再进行静音检测）。
-2.  **可扩展性**: 需设计为易于添加新算法的架构。
-3.  **信号筛选**: 能够根据配置阈值判断音频帧是否包含有效信号（VAD - Voice Activity Detection）。
-4.  **元数据生成**: 计算并附加信号特征（如最大振幅、信噪比等）到 `ProcessedData` 结构中。
+**现有实现：**
+1. **Processor 接口**：`process(const AudioFrame&) -> Result<ProcessedData>`
+2. **处理器**：`DenoiseProcessor` / `VADProcessor` / `FeatureExtractor`
+3. **PipelineManager**：串行执行处理器链
+4. **AudioProcessingService**：封装 pipeline，对外提供 `processAudioFrame`
+5. **ProcessorFactory**：创建默认流水线（Denoise → VAD → Feature）
 
 **输入：** `AudioFrame`
 **输出：** `ProcessedData`
@@ -112,31 +111,30 @@ factory管理两种数据，实现包含两种数据，单独文件管理数据�
 
 ### Storage 模块（待开发）
 
-**职责：** 本地文件管理与存储。
+**职责：** 本地文件管理与存储（目前代码未实现）。
 
 **功能需求：**
 1.  **格式规范**: 音频数据保存为标准 WAV 格式；元数据保存为同名 JSON 文件。
 2.  **目录结构**: 按日期分层存储，例如 `storage/YYYY/MM/DD/audio_<timestamp>.wav`。
 3.  **空间管理**: 需监控存储目录大小。当超过配置上限时，依据 FIFO（先进先出）原则自动清理旧文件。
-4.  **队列管理**: 提供接口查询“已保存但未上传”的文件列表。
+4.  **队列管理**: 提供接口查询“已保存待提供下载”的文件列表。
 
 **输入：** `ProcessedData`
 **输出：** 文件路径
 
 ---
 
-### Network 模块（待开发）
+### Network 模块（已实现）
 
-**职责：** 将本地数据同步至云端。
+**职责：** 在本地提供网络服务，支持下载本地文件与元数据（不上传服务器）。
 
 **功能需求：**
-1.  **HTTPS 上传**: 将音频文件及其对应的元数据上传至指定 REST API。
-2.  **异步处理**: 上传过程不能阻塞主线程。
-3.  **可靠性**: 遇到网络波动需支持重试策略。
-4.  **状态反馈**: 需明确反馈上传成功、失败、超时等状态。
+1.  **本地下载**: 提供 HTTP API 或本地协议，支持下载 WAV/JSON
+2.  **异步处理**: 下载/读取不阻塞主线程
+3.  **可扩展性**: 预留鉴权、限速、断点续传等策略
 
 **输入：** 文件路径 + 元数据
-**输出：** 上传状态
+**输出：** 下载响应/文件流
 
 ---
 
@@ -147,18 +145,14 @@ factory管理两种数据，实现包含两种数据，单独文件管理数据�
 ```json
 {
     "audio": {
-        "type": "tcp",
-        "host": "127.0.0.1",
-        "port": 8080
+        "type": "system",
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "device": "default"
     },
-    "storage": {
-        "path": "./data",
-        "maxSize": 10737418240
-    },
-    "network": {
-        "baseUrl": "https://api.example.com",
-        "timeout": 30000
-    }
+    "storage": {},
+    "network": {}
 }
 ```
 

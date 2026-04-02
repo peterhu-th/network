@@ -39,7 +39,7 @@ namespace radar::network {
         static constexpr int64_t TIMESTAMP_LEFT_SHIFT = SEQUENCE_BITS + WORKER_ID_BITS + DATACENTER_ID_BITS;
         static constexpr int64_t SEQUENCE_MASK = (1LL << SEQUENCE_BITS) - 1;
 
-        static constexpr int64_t TW_EPOCH = 1767225600000L; // 2026 年 1 月 1 日
+        static constexpr int64_t TW_EPOCH = 1767225600000L; // 从 2026 年 1 月 1 日开始计算
     };
 }
 

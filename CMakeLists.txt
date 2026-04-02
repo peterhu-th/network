@@ -7,16 +7,18 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Qt5
-find_package(Qt5 REQUIRED COMPONENTS Core Network)
+# Qt6
+find_package(Qt6 REQUIRED COMPONENTS Core Network Sql HttpServer Widgets)
 
 # modules
 add_subdirectory(src/core)
-add_subdirectory(src/audio)         # TODO: enable after implementation
- add_subdirectory(src/processing)  # TODO: enable after implementation
+add_subdirectory(src/audio)
+add_subdirectory(src/processing)
 # add_subdirectory(src/storage)     # TODO: enable after implementation
-# add_subdirectory(src/network)     # TODO: enable after implementation
+add_subdirectory(src/network)
 add_subdirectory(tests)
+
+# add_subdirectory(src/ui)
 
 # main executable
 add_executable(${PROJECT_NAME} src/main.cpp
@@ -25,11 +27,14 @@ add_executable(${PROJECT_NAME} src/main.cpp
 target_link_libraries(${PROJECT_NAME} PRIVATE
     core
     audio
-    processing
+    processing_lib
     # storage
-    # network
-    Qt5::Core
-    Qt5::Network
+    network
+    # ui
+    Qt6::Core
+    Qt6::Network
+    Qt6::Sql
+    Qt6::Widgets
 )
 
 # copy config

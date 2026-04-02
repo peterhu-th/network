@@ -10,9 +10,9 @@ namespace radar {
 
 struct AudioFrame {
     int64_t timestamp = 0;
-    int sampleRate = 0;
-    int channels = 0;
-    int sampleSize = 0;
+    int sampleRate = 44100;
+    int channels = 1;
+    int sampleSize = 16;
     QByteArray data;
     QString sourceId;
 };
@@ -33,17 +33,34 @@ struct SourceConfig {
 
 enum class ErrorCode {
     Success = 0,
+    
     AudioReadFailed = 1001, //暂时未使用
     AudioDeviceNotFound = 1002,
     AudioDeviceInitFailed = 1003,
     InvalidState = 1004,
     UnsupportedFormat = 1005,
     UnknownSourceType = 1006,
+
     ProcessingFailed = 2001,
+    
     StorageFull = 3001,
     FileWriteFailed = 3002,
-    UploadFailed = 4001,
-    NetworkTimeout = 4002,
+    
+    NetworkTimeout = 4001,
+    NetworkPortOccupied = 4002,
+    NetworkListenFailed = 4003,
+    DatabaseInitFailed = 4004,
+    DatabaseConnectionFailed = 4005,
+    InvalidConfig = 4006,
+    ConfigMissingField = 4007,
+    DatabaseQueryFailed = 4008,
+    NetworkFileIOFailed = 4009,
+    RecordNotFound = 4010,
+    HttpServerError = 4011,
+    AuthorizationFailed = 4012,
+    FileNotExist = 4013,
+    InvalidParam = 4014,
+    ToolsError = 4015
 };
 
 template<typename T>
