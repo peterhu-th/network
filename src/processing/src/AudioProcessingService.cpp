@@ -1,26 +1,38 @@
-#include "../include/AudioProcessingService.h"
+#include "AudioProcessingService.h"
+#include "ProcessorFactory.h"
 
 namespace radar {
 
-    AudioProcessingService::AudioProcessingService() {
-        auto defaultProcessors = ProcessorFactory::createDefaultPipeline();
-        for (auto& p : defaultProcessors) {
-            m_pipeline.addProcessor(std::move(p));
-        }
+    void AudioProcessingService::initDefaultPipeline() {
+        initPipelineForFullFeature();
     }
 
-    AudioProcessingService::AudioProcessingService(std::vector<std::unique_ptr<Processor>> customProcessors) {
-        for (auto& p : customProcessors) {
-            m_pipeline.addProcessor(std::move(p));
-        }
-    }
-
-    std::unique_ptr<AudioProcessingService> AudioProcessingService::createCustomService(std::vector<std::unique_ptr<Processor>> customProcessors) {
-        return std::make_unique<AudioProcessingService>(std::move(customProcessors));
-    }
-
-    Result<ProcessedData> AudioProcessingService::processAudioFrame(const AudioFrame& frame) {
+    Result<ProcessedData> AudioProcessingService::processAudio(const AudioFrame& frame) {
         return m_pipeline.execute(frame);
+    }
+
+    void AudioProcessingService::initPipelineForVoice() {
+        m_pipeline.clearProcessors();
+        auto denoise = ProcessorFactory::createProcessor(ProcessorFactory::ProcessorType::Denoise);
+        auto vad = ProcessorFactory::createProcessor(ProcessorFactory::ProcessorType::VAD);
+        if (denoise) m_pipeline.addProcessor(std::move(denoise));
+        if (vad) m_pipeline.addProcessor(std::move(vad));
+    }
+
+    void AudioProcessingService::initPipelineForFullFeature() {
+        m_pipeline.clearProcessors();
+        auto denoise = ProcessorFactory::createProcessor(ProcessorFactory::ProcessorType::Denoise);
+        auto vad = ProcessorFactory::createProcessor(ProcessorFactory::ProcessorType::VAD);
+        auto feature = ProcessorFactory::createProcessor(ProcessorFactory::ProcessorType::FeatureExtractor);
+        if (denoise) m_pipeline.addProcessor(std::move(denoise));
+        if (vad) m_pipeline.addProcessor(std::move(vad));
+        if (feature) m_pipeline.addProcessor(std::move(feature));
+    }
+
+    void AudioProcessingService::initPipelineForSimpleDenoise() {
+        m_pipeline.clearProcessors();
+        auto denoise = ProcessorFactory::createProcessor(ProcessorFactory::ProcessorType::Denoise);
+        if (denoise) m_pipeline.addProcessor(std::move(denoise));
     }
 
 } // namespace radar

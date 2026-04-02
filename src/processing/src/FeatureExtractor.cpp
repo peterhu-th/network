@@ -1,28 +1,36 @@
 #include "../include/FeatureExtractor.h"
+#include <QDebug>
 
 namespace radar {
 
     Result<ProcessedData> FeatureExtractor::process(const AudioFrame& frame) {
-        auto validateRes = validateInput(frame);
-        if (!validateRes.isOk()) {
-            // 替换 InvalidData 为 ProcessingFailed
-            return Result<ProcessedData>::error("特征提取器：输入无效", ErrorCode::ProcessingFailed);
+        // 输入验证
+        auto validateResult = validateInput(frame);
+        if (!validateResult.isOk()) {
+            return Result<ProcessedData>::error(validateResult.errorMessage(), validateResult.errorCode());
         }
 
+        // 提取音频特征
         ProcessedData output;
         output.originalFrame = frame;
         output.isValid = true;
-        output.signalStrength = 0.90;
-        output.features = extractFeatures(frame);
+        output.signalStrength = 0.8f;
+
+        // 基础特征提取
+        output.features["sample_rate"] = frame.sampleRate;
+        output.features["audio_length_ms"] = (frame.data.size() * 1000) / (frame.sampleRate * 2);
+        output.features["channel_count"] = 1;
+        output.features["bit_depth"] = 16;
 
         return Result<ProcessedData>::ok(output);
     }
 
     QVariantMap FeatureExtractor::extractFeatures(const AudioFrame& frame) {
         QVariantMap features;
-        features.insert("frame_size", frame.data.size());
-        features.insert("sample_rate", frame.sampleRate);
-        features.insert("signal_energy", 1250.5);
+        features["sample_rate"] = frame.sampleRate;
+        features["data_size"] = frame.data.size();
+        features["timestamp"] = frame.timestamp;
+        features["source_id"] = frame.sourceId;
         return features;
     }
 

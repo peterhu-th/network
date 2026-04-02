@@ -1,8 +1,8 @@
 #ifndef PROCESSING_RADAR_PROCESSOR_BASE_H
 #define PROCESSING_RADAR_PROCESSOR_BASE_H
 
-#include "../core/types.h"
-#include <memory>
+// 核心类型头文件（修正路径）
+#include "../../src/core/types.h"
 
 namespace radar {
 
@@ -12,7 +12,7 @@ namespace radar {
         virtual Result<ProcessedData> process(const AudioFrame& frame) = 0;
 
     protected:
-        // 补充validateInput的实现（之前只声明未定义）
+        // 输入验证函数
         Result<bool> validateInput(const AudioFrame& frame) {
             if (frame.data.isEmpty() || frame.sampleRate == 0) {
                 return Result<bool>::error("输入音频帧无效", ErrorCode::ProcessingFailed);
