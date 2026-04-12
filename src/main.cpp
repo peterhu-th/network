@@ -36,8 +36,8 @@ int main(int argc, char* argv[]) {
     // 初始化网络与存储控制器
     radar::network::AudioRecordController networkController;
     auto initRes = networkController.init(config.databaseConfig(), config.networkConfig());
-    if (auto res = networkController.init(allConfig); !res.isOk()) {
-        LOG_ERROR("Network", "Failed to init network controller: " + res.errorMessage());
+    if (!initRes.isOk()) {
+        LOG_ERROR("Network", "Failed to init network controller: " + initRes.errorMessage());
         return -1;
     }
     if (auto res = networkController.start(); !res.isOk()) {

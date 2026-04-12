@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-const SERVER_URL = 'http://192.168.150.93:8080/api'
+const SERVER_URL = `http://${window.location.hostname}:8080/api`
 const SERVER_SECRET = 'RADAR_SECRET_KEY_2026'
 const CURRENT_UID = 105
 
