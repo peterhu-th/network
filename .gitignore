@@ -24,7 +24,6 @@ Makefile
 # Config with secrets
 config/config.local.json
 data/*
-tools/*.exe
 
 # Logs
 *.log

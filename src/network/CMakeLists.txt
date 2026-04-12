@@ -9,12 +9,16 @@ add_library(network
 )
 
 find_package(Qt6 REQUIRED COMPONENTS Core Network Sql HttpServer)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(TAGLIB REQUIRED taglib)
 
 target_include_directories(network PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${TAGLIB_INCLUDE_DIRS}
 )
 
 target_link_libraries(network PUBLIC
+        ${TAGLIB_LIBRARIES}
         Qt6::Core
         Qt6::Network
         Qt6::Sql

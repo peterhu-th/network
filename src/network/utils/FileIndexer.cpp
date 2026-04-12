@@ -3,6 +3,8 @@
 #include <QProcess>
 #include <QCoreApplication>
 #include <QDir>
+#include <taglib/fileref.h>
+#include <taglib/audioproperties.h>
 #include "IdGenerator.h"
 #include "FileIndexer.h"
 
@@ -38,14 +40,44 @@ namespace radar::network {
         return scanDirectory(m_rootPath);
     }
 
-    Result<void> FileIndexer::scanDirectory(const QString &path) const{
-        // 递归搜索子目录
+    Result<void> FileIndexer::scanDirectory(const QString &path) const {
+        // 获取数据库现有记录
+        auto allDbRes = m_dbManager->getAllFilePaths();
+        if (!allDbRes.isOk()) {
+            return Result<void>::error("Failed to fetch DB records: " + allDbRes.errorMessage(), allDbRes.errorCode());
+        }
+
+        // 将数据库记录存入哈希表
+        std::unordered_map<QString, qint64> dbRecordsMap;
+        for (const auto& pair : allDbRes.value()) {
+            dbRecordsMap[pair.second] = pair.first;
+        }
+
+        // 遍历本地目录
         QDirIterator it(path, QStringList() << "*.wav" << "*.mp3" << "*.m4a", QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
             QString filePath = it.next();
-            auto res = processFile(filePath);
-            if (!res.isOk()) {
-                qWarning() << "Failed to process file: " << filePath << ", error: " << res.errorMessage();
+
+            auto mapIt = dbRecordsMap.find(filePath);
+            if (mapIt != dbRecordsMap.end()) {
+                dbRecordsMap.erase(mapIt);
+            } else {
+                auto res = processFile(filePath);
+                if (!res.isOk()) {
+                    qWarning() << "Failed to process new file: " << filePath << ", error: " << res.errorMessage();
+                } else {
+                    qInfo() << "Added new file to database: " << filePath;
+                }
+            }
+        }
+        // 清理残留数据
+        for (const auto& pair : dbRecordsMap) {
+            auto deleteRes = m_dbManager->deleteRecord(pair.second);
+            if (!deleteRes.isOk()) {
+                qWarning() << "Failed to delete missing file record ID: " << pair.second
+                           << ", error: " << deleteRes.errorMessage();
+            } else {
+                qInfo() << "Deleted DB record for missing local file: " << pair.first;
             }
         }
         return Result<void>::ok();
@@ -79,7 +111,7 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
-    Result<AudioRecord> FileIndexer::parseMetadata(const QString &audioPath) const {
+    Result<AudioRecord> FileIndexer::parseMetadata(const QString &audioPath) {
         AudioRecord record;
         record.filePath = audioPath;
         record.fileSize = QFileInfo(audioPath).size();
@@ -114,31 +146,19 @@ namespace radar::network {
         return QFileInfo(audioPath).lastModified();
     }
 
-    Result<int> FileIndexer::getAudioDuration(const QString &filePath) const{
-        QString ffprobePath = m_ffprobePath;
-        QFileInfo toolInfo(ffprobePath);
-        if (!toolInfo.exists()) {
-            return Result<int>::error("ffprobe not found by path: " + ffprobePath, ErrorCode::ToolsError);
+    Result<int> FileIndexer::getAudioDuration(const QString &filePath) {
+        QFileInfo fileInfo(filePath);
+        if (!fileInfo.exists()) {
+            return Result<int>::error("File not found: " + filePath, ErrorCode::InvalidParam);
         }
-        QProcess process;
-        QStringList args;
-        args << "-v" << "error"
-             << "-show_entries" << "format=duration"
-             << "-of" << "default=noprint_wrappers=1:nokey=1"
-             << filePath;
-        process.start(ffprobePath, args);
-
-        if (!process.waitForFinished(2000)) {
-            process.kill();
-            return Result<int>::error("ffprobe timed out: " + filePath, ErrorCode::ToolsError);
+        TagLib::FileRef f(reinterpret_cast<const wchar_t*>(filePath.utf16()));
+        // 解析并获取时长
+        if (!f.isNull() && f.audioProperties()) {
+            int durationSeconds = f.audioProperties()->lengthInSeconds();
+            if (durationSeconds >= 0) {
+                return Result<int>::ok(durationSeconds);
+            }
         }
-        QString output = process.readAllStandardOutput().trimmed();
-        bool ok;
-        double durationSeconds = output.toDouble(&ok);
-        if (ok) {
-            return Result<int>::ok(qRound(durationSeconds));
-        }
-
-        return Result<int>::error("invalid ffprobe output: " + output, ErrorCode::ToolsError);
+        return Result<int>::error("Failed to parse duration natively for: " + filePath, ErrorCode::ToolsError);
     }
 }

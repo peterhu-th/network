@@ -24,9 +24,9 @@ namespace radar::network {
         QTimer* m_timer;
         [[nodiscard]] Result<void> scanDirectory(const QString& path) const;
         [[nodiscard]] Result<void> processFile(const QString& filePath) const;
-        [[nodiscard]] Result<AudioRecord> parseMetadata(const QString &audioPath) const;
+        static Result<AudioRecord> parseMetadata(const QString &audioPath);
         static QDateTime getGenerationTime(const QString& jsonPath, const QString& audioPath);
-        [[nodiscard]] Result<int> getAudioDuration(const QString &filePath) const;
+        static Result<int> getAudioDuration(const QString &filePath);
     };
 }
 #endif
