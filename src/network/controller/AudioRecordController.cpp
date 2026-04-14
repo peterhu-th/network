@@ -1,5 +1,5 @@
 #include "AudioRecordController.h"
-#include "../ApiResponse.h"
+#include "../Response.h"
 #include "../../core/Config.h"
 
 namespace radar::network {
@@ -45,7 +45,7 @@ namespace radar::network {
     }
 
     void AudioRecordController::setupRoutes() const {
-        auto optionsHandler = [](const QHttpServerRequest&) { return ApiResponse::success(); };
+        auto optionsHandler = [](const QHttpServerRequest&) { return Response::success(); };
         m_httpServer->route("/api/files", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/api/download", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/api/files", QHttpServerRequest::Method::Get,
@@ -63,7 +63,7 @@ namespace radar::network {
     QHttpServerResponse AudioRecordController::handleListFiles(const QHttpServerRequest& request) const {
         auto authRes = checkAuth(request);
         if (!authRes.isOk()) {
-            return ApiResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponse::StatusCode::Unauthorized);
+            return Response::error(static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponse::StatusCode::Unauthorized);
         }
         //TODO: 处理 UID
         qint64 uid = authRes.value();
@@ -80,12 +80,12 @@ namespace radar::network {
 
         auto recordsRes = m_service->getRecordPage(startTime, endTime, limit, offset);
         if (!recordsRes.isOk()) {
-            return ApiResponse::error(static_cast<int>(recordsRes.errorCode()), recordsRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
+            return Response::error(static_cast<int>(recordsRes.errorCode()), recordsRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }
 
         auto countRes = m_service->getTotalCount(startTime, endTime);
         if (!countRes.isOk()) {
-            return ApiResponse::error(static_cast<int>(countRes.errorCode()), countRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
+            return Response::error(static_cast<int>(countRes.errorCode()), countRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }
         // 将 DTO 反射为 JSON 并返回
         QJsonArray dataArray;
@@ -96,18 +96,18 @@ namespace radar::network {
         resultData["list"] = dataArray;
         resultData["total"] = countRes.value();
 
-        return ApiResponse::success(resultData);
+        return Response::success(resultData);
     }
 
    void AudioRecordController::handleDownload(const QHttpServerRequest& request, QHttpServerResponder& responder) const {
         auto authRes = checkAuth(request);
         if (!authRes.isOk()) {
-            ApiResponse::writeError(responder, static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponder::StatusCode::Unauthorized);
+            Response::writeError(responder, static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponder::StatusCode::Unauthorized);
             return;
         }
         QUrlQuery query = request.query();
         if (!query.hasQueryItem("id")) {
-            ApiResponse::writeError(responder, static_cast<int>(ErrorCode::InvalidParam), "Missing 'id' parameter", QHttpServerResponder::StatusCode::Unauthorized);
+            Response::writeError(responder, static_cast<int>(ErrorCode::InvalidParam), "Missing 'id' parameter", QHttpServerResponder::StatusCode::Unauthorized);
             return;
         }
 
@@ -117,7 +117,7 @@ namespace radar::network {
 
         auto downloadRes = m_service->prepareDownload(id, speed, rangeHeader, const_cast<AudioRecordController*>(this));
         if (!downloadRes.isOk()) {
-            ApiResponse::writeError(responder, static_cast<int>(downloadRes.errorCode()), downloadRes.errorMessage(), QHttpServerResponder::StatusCode::NotFound);            return;
+            Response::writeError(responder, static_cast<int>(downloadRes.errorCode()), downloadRes.errorMessage(), QHttpServerResponder::StatusCode::NotFound);            return;
         }
 
         const auto& context = downloadRes.value();

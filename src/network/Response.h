@@ -8,7 +8,7 @@
 #include <QTcpServer>
 
 namespace radar::network {
-    class ApiResponse {
+    class Response {
     public:
         // 成功响应 (包含数据)
         static QHttpServerResponse success(const QJsonValue& data) {
@@ -21,12 +21,10 @@ namespace radar::network {
             appendCorsHeaders(response);
             return response;
         }
-
         // 成功响应 (无数据)
         static QHttpServerResponse success() {
             return success(QJsonValue::Null);
         }
-
         // 错误响应 (返回内部 ErrorCode 和 HTTP 状态码)
         static QHttpServerResponse error(int errorCode, const QString& message, QHttpServerResponse::StatusCode httpCode) {
             QJsonObject res{
