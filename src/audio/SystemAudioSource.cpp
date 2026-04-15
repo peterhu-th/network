@@ -1,9 +1,43 @@
 #include "SystemAudioSource.h"
+#include <QMediaDevices>
+
+namespace {
+QAudioFormat::SampleFormat toSampleFormat(uint16_t sampleSize)
+{
+    switch (sampleSize) {
+    case 8:
+        return QAudioFormat::UInt8;
+    case 16:
+        return QAudioFormat::Int16;
+    case 32:
+        return QAudioFormat::Int32;
+    default:
+        return QAudioFormat::Unknown;
+    }
+}
+
+int toSampleSize(QAudioFormat::SampleFormat sampleFormat)
+{
+    switch (sampleFormat) {
+    case QAudioFormat::UInt8:
+        return 8;
+    case QAudioFormat::Int16:
+        return 16;
+    case QAudioFormat::Int32:
+    case QAudioFormat::Float:
+        return 32;
+    case QAudioFormat::Unknown:
+    case QAudioFormat::NSampleFormats:
+        return 0;
+    }
+    return 0;
+}
+}
 
 namespace radar::audio {
     SystemAudioSource::SystemAudioSource(QObject *parent):
         AudioSourceBase(parent),
-        m_audioInput(nullptr),
+        m_audioSource(nullptr),
         m_ioDevice(nullptr)
     {}
 
@@ -12,25 +46,24 @@ namespace radar::audio {
         if (!baseResult.isOk()) {
             return baseResult;
         }
-        if (QAudioDeviceInfo::defaultInputDevice().isNull()) {
+        m_audioDevice = QMediaDevices::defaultAudioInput();
+        if (m_audioDevice.isNull()) {
             return Result<void>::error("Audio device not found!", ErrorCode::AudioDeviceNotFound);
         }
+        m_format = QAudioFormat();
         m_format.setSampleRate(m_sampleRate);
         m_format.setChannelCount(m_channels);
-        m_format.setSampleSize(m_sampleSize);
-        //数据格式
-        m_format.setCodec("audio/pcm");
-        //小端序
-        m_format.setByteOrder(QAudioFormat::LittleEndian);
-        m_format.setSampleType(QAudioFormat::SignedInt);
+        m_format.setSampleFormat(toSampleFormat(m_sampleSize));
+        if (m_format.sampleFormat() == QAudioFormat::Unknown) {
+            return Result<void>::error("Unsupported sample size!", ErrorCode::UnsupportedFormat);
+        }
 
-        QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
-        if (!info.isFormatSupported(m_format)) {
+        if (!m_audioDevice.isFormatSupported(m_format)) {
             return Result<void>::error("Unsupported format!", ErrorCode::UnsupportedFormat);
         }
 
-        m_audioInput = new QAudioInput(m_format, this);
-        m_ioDevice = m_audioInput->start();
+        m_audioSource = new QAudioSource(m_audioDevice, m_format, this);
+        m_ioDevice = m_audioSource->start();
         if (m_ioDevice == nullptr) {
             return Result<void>::error("Failed to start audio input!", ErrorCode::AudioDeviceInitFailed);
         }
@@ -41,7 +74,7 @@ namespace radar::audio {
     }
 
     void SystemAudioSource::readFrame() {
-        if (m_ioDevice == nullptr || m_audioInput == nullptr) {
+        if (m_ioDevice == nullptr || m_audioSource == nullptr) {
             return;
         }
         QByteArray data = m_ioDevice->readAll();
@@ -53,7 +86,7 @@ namespace radar::audio {
         audio_frame.timestamp = QDateTime::currentMSecsSinceEpoch();
         audio_frame.sampleRate = m_sampleRate;
         audio_frame.channels = m_channels;
-        audio_frame.sampleSize = m_sampleSize;
+        audio_frame.sampleSize = toSampleSize(m_format.sampleFormat());
         audio_frame.data = data;
         audio_frame.sourceId = "SystemMicro";
         emit frameReady(audio_frame);
@@ -64,10 +97,10 @@ namespace radar::audio {
         if (!baseResult.isOk()) {
             return baseResult;
         }
-        if (m_audioInput != nullptr) {
-            m_audioInput->stop();
-            delete m_audioInput;
-            m_audioInput = nullptr;
+        if (m_audioSource != nullptr) {
+            m_audioSource->stop();
+            delete m_audioSource;
+            m_audioSource = nullptr;
             m_ioDevice = nullptr;
         }
         return Result<void>::ok();

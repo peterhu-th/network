@@ -1,8 +1,7 @@
 #ifndef PROCESSING_RADAR_PROCESSOR_BASE_H
 #define PROCESSING_RADAR_PROCESSOR_BASE_H
 
-// 核心类型头文件（修正路径）
-#include "../../src/core/types.h"
+#include "Types.h"
 
 namespace radar {
 

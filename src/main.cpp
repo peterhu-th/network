@@ -1,4 +1,4 @@
-#include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include "Logger.h"
 #include "Config.h"
@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
 
     auto& config = radar::Config::instance();
     const QStringList configCandidates = {
-        QApplication::applicationDirPath() + "/config.json",
+        QCoreApplication::applicationDirPath() + "/config.json",
         QDir::currentPath() + "/config/config.json",
         QDir::currentPath() + "/config.json"
     };
@@ -28,16 +28,11 @@ int main(int argc, char* argv[]) {
         LOG_WARNING("Config", "Failed to load config. Using defaults.");
     }
 
-    QVariantMap allConfig;
-    allConfig["network"] = config.networkConfig();
-    allConfig["database"] = config.databaseConfig();
-    allConfig["storage"] = config.storageConfig();
-
     // 初始化网络与存储控制器
     radar::network::AudioRecordController networkController;
     auto initRes = networkController.init(config.databaseConfig(), config.networkConfig());
-    if (auto res = networkController.init(allConfig); !res.isOk()) {
-        LOG_ERROR("Network", "Failed to init network controller: " + res.errorMessage());
+    if (!initRes.isOk()) {
+        LOG_ERROR("Network", "Failed to init network controller: " + initRes.errorMessage());
         return -1;
     }
     if (auto res = networkController.start(); !res.isOk()) {
@@ -58,7 +53,7 @@ int main(int argc, char* argv[]) {
                      [&processingService](const radar::AudioFrame& frame) {
                          static int frameCount = 0;
                          ++frameCount;
-                         auto result = processingService.processAudioFrame(frame);
+                         auto result = processingService.processAudio(frame);
                          if (!result.isOk()) {
                              LOG_ERROR("Processing", result.errorMessage());
                              return;
@@ -80,7 +75,7 @@ int main(int argc, char* argv[]) {
                              .arg(static_cast<int>(code)));
                      });
 
-    QObject::connect(&app, &QApplication::aboutToQuit, [&source, &networkController]() {
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [&source, &networkController]() {
         if (source != nullptr) {
             source->stop();
         }

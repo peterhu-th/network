@@ -3,9 +3,9 @@
 
 #include "AudioSourceBase.h"
 #include <QIODevice>
-#include <QAudioInput>
 #include <QAudioFormat>
-#include <QAudioDeviceInfo>
+#include <QAudioSource>
+#include <QAudioDevice>
 
 namespace radar::audio {
     class SystemAudioSource: public AudioSourceBase {
@@ -23,9 +23,9 @@ namespace radar::audio {
         void readFrame();
 
     private:
-        QAudioInput *m_audioInput;
+        QAudioSource *m_audioSource;
         QIODevice *m_ioDevice;
-        //m_format是数值量，用默认构造函数初始化
+        QAudioDevice m_audioDevice;
         QAudioFormat m_format;
     };
 }

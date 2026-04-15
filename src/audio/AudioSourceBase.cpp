@@ -32,7 +32,7 @@ namespace radar::audio {
         }
         //打印采样时长
         uint64_t duration = getDuration();
-        qDebug() << "Audio sampling stopped. Total duration: " << duration << "ms" << endl;
+        qDebug() << "Audio sampling stopped. Total duration:" << duration << "ms";
         m_isRunning = false;
         return Result<void>::ok();
     }
