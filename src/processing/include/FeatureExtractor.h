@@ -2,8 +2,6 @@
 #define PROCESSING_FEATUREEXTRACTOR_H
 
 #include "radar_processor_base.h"
-// 核心类型头文件（修正路径）
-#include "../../src/core/types.h"
 
 namespace radar {
 

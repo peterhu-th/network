@@ -32,7 +32,7 @@ namespace radar::network {
                 auto uidStr = decoded.get_payload_claim("uid").as_string();
                 return Result<qint64>::ok(QString::fromStdString(uidStr).toLongLong());
 
-            } catch (const jwt::token_verification_exception& e) {
+            } catch (const jwt::error::token_verification_exception& e) {
                 return Result<qint64>::error(QString("Token verify failed: ") + e.what(), ErrorCode::AuthorizationFailed);
             } catch (const std::exception& e) {
                 return Result<qint64>::error(QString("Invalid token format: ") + e.what(), ErrorCode::AuthorizationFailed);

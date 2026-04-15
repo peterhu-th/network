@@ -16,8 +16,7 @@
         "dbName": "audio",
         "username": "postgres",
         "passWord": "6",
-        "storagePath": "D:/gitstore/Audio-Radar-Client/data",
-        "ffprobePath": "D:/gitstore/Audio-Radar-Client/tools/ffprobe.exe"
+        "storagePath": "D:/gitstore/Audio-Radar-Client/data"
     },
     "network": {
         "bindAddress": "127.0.0.1",

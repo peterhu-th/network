@@ -31,13 +31,11 @@ bool Config::load(const QString& path) {
     m_dbConfig.dbName = dbObj["dbName"].toString("audio");
     m_dbConfig.username = dbObj["username"].toString("postgres");
     m_dbConfig.passWord = dbObj["passWord"].toString();
-    m_dbConfig.storagePath = dbObj["storagePath"].toString("./data");
-    m_dbConfig.ffprobePath = dbObj["ffprobePath"].toString("./tools/ffprobe.exe");
 
     QJsonObject netObj = rootObj["network"].toObject();
     m_netConfig.bindAddress = netObj["bindAddress"].toString("127.0.0.1");
     m_netConfig.port = netObj["port"].toInt(8080);
-    m_netConfig.serverSecret = netObj["serverSecret"].toString("RADAR_SECRET_KEY_2026");
+    m_netConfig.serverSecret = netObj["serverSecret"].toString();
     m_netConfig.globalConnectionName = netObj["globalConnectionName"].toString("Audio_GlobalPool");
 
     return true;

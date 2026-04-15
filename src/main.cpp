@@ -28,11 +28,6 @@ int main(int argc, char* argv[]) {
         LOG_WARNING("Config", "Failed to load config. Using defaults.");
     }
 
-    QVariantMap allConfig;
-    allConfig["network"] = config.networkConfig();
-    allConfig["database"] = config.databaseConfig();
-    allConfig["storage"] = config.storageConfig();
-
     // 初始化网络与存储控制器
     radar::network::AudioRecordController networkController;
     auto initRes = networkController.init(config.databaseConfig(), config.networkConfig());
@@ -58,7 +53,7 @@ int main(int argc, char* argv[]) {
                      [&processingService](const radar::AudioFrame& frame) {
                          static int frameCount = 0;
                          ++frameCount;
-                         auto result = processingService.processAudioFrame(frame);
+                         auto result = processingService.processAudio(frame);
                          if (!result.isOk()) {
                              LOG_ERROR("Processing", result.errorMessage());
                              return;

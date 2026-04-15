@@ -16,6 +16,7 @@ namespace radar {
 
     private:
         AudioFrame applyBandpassFilter(const AudioFrame& frame);
+        std::vector<double> applyALE(const std::vector<double>& x, double mu = 0.001, int M = 16, int delta = 3);
         void applyFFT(std::vector<std::complex<double>>& data);
         void applyIFFT(std::vector<std::complex<double>>& data);
 

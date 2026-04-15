@@ -2,7 +2,6 @@
 #define PROCESSING_VADPROCESSOR_H
 
 #include "radar_processor_base.h"
-#include "../../src/core/types.h"
 
 namespace radar {
 

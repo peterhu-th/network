@@ -46,18 +46,15 @@ namespace radar::network {
         if (!allDbRes.isOk()) {
             return Result<void>::error("Failed to fetch DB records: " + allDbRes.errorMessage(), allDbRes.errorCode());
         }
-
         // 将数据库记录存入哈希表
         std::unordered_map<QString, qint64> dbRecordsMap;
         for (const auto& pair : allDbRes.value()) {
             dbRecordsMap[pair.second] = pair.first;
         }
-
         // 遍历本地目录
         QDirIterator it(path, QStringList() << "*.wav" << "*.mp3" << "*.m4a", QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
             QString filePath = it.next();
-
             auto mapIt = dbRecordsMap.find(filePath);
             if (mapIt != dbRecordsMap.end()) {
                 dbRecordsMap.erase(mapIt);
