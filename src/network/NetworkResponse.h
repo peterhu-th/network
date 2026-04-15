@@ -58,22 +58,27 @@ namespace radar::network {
                         {"message", message},
                         {"data", QJsonValue::Null}
             };
-            QHttpHeaders headers;
-            headers.append("Access-Control-Allow-Origin", "*");
-            headers.append("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            QHttpHeaders headers = getCorsHeaders();
             headers.append("Content-Type", "application/json");
             responder.write(QJsonDocument(res).toJson(), headers, httpCode);
         }
 
-    private:
-        // 添加跨域头
-        static void appendCorsHeaders(QHttpServerResponse& response) {
+        // 统一获取跨域相关的 Header
+        static QHttpHeaders getCorsHeaders() {
             QHttpHeaders headers;
+            // 允许所有源（实际生产中应限制为特定域名）
             headers.append("Access-Control-Allow-Origin", "*");
+            // 允许的跨域请求方法
             headers.append("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization");
-            response.setHeaders(headers);
+            // 允许客户端携带的自定义 Header，增加 Range 支持断点续传
+            headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization, Range");
+            return headers;
+        }
+
+    private:
+        // 添加跨域头到 HTTP 响应对象
+        static void appendCorsHeaders(QHttpServerResponse& response) {
+            response.setHeaders(getCorsHeaders());
         }
 
         static QJsonValue extractData(const QJsonValue& val) {

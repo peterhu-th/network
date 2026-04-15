@@ -25,6 +25,7 @@ namespace radar::network {
         std::unique_ptr<QHttpServer> m_httpServer;
         int m_port = 8080;
         QHostAddress m_bindAddress = QHostAddress::LocalHost;
+        QString m_jwtSecret;
 
         void setupRoutes() const;
         [[nodiscard]] Result<qint64> checkAuth(const QHttpServerRequest& request) const;

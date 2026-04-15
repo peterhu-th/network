@@ -1,5 +1,6 @@
 #include "AudioRecordController.h"
 #include "../NetworkResponse.h"
+#include "utils/JwtUtils.h"
 #include "../../core/Config.h"
 
 namespace radar::network {
@@ -15,6 +16,10 @@ namespace radar::network {
     Result<void> AudioRecordController::init(const DatabaseConfig& dbConfig, const NetworkConfig& netConfig) {
         m_port = netConfig.port;
         m_bindAddress = QHostAddress(netConfig.bindAddress);
+        if (network::serverSecret.isEmpty()) {
+            return Result<void>::error("Server secret is missing in configuration", ErrorCode::InvalidConfig);
+        }
+        m_jwtSecret = netConfig.serverSecret;
         auto res = m_service->init(dbConfig, netConfig);
         if (!res.isOk()) {
             return Result<void>::error("Service init failed: " + res.errorMessage(), res.errorCode());
@@ -57,7 +62,13 @@ namespace radar::network {
     }
 
     Result<qint64> AudioRecordController::checkAuth(const QHttpServerRequest& request) const {
-        return m_service->verifyToken(QString::fromUtf8(request.value("Authorization")));
+        QString authHeader = QString::fromUtf8(request.value("Authorization")).trimmed();
+        if (authHeader.isEmpty() || !authHeader.startsWith("Bearer ", Qt::CaseInsensitive)) {
+            return Result<qint64>::error("Missing or invalid Authorization header scheme", ErrorCode::AuthorizationFailed);
+        }
+        QString token = authHeader.mid(7).trimmed();
+
+        return JwtUtils::verifyToken(token, m_jwtSecret);
     }
 
     QHttpServerResponse AudioRecordController::handleListFiles(const QHttpServerRequest& request) const {
@@ -91,7 +102,7 @@ namespace radar::network {
         PageDTO<AudioRecordDTO> pageData;
         pageData.list = recordsRes.value();
         pageData.total = countRes.value();
-        return NetworkResponse::fromResult(Result<PageDTO<AudioRecordDTO>>::ok(pageData));
+        return NetworkResponse::success(pageData);
     }
 
    void AudioRecordController::handleDownload(const QHttpServerRequest& request, QHttpServerResponder& responder) const {
@@ -117,8 +128,8 @@ namespace radar::network {
 
         const auto& context = downloadRes.value();
         connect(context.stream, &QIODevice::aboutToClose, context.stream, &QObject::deleteLater);
-        QHttpHeaders headers;
-        headers.append("Access-Control-Allow-Origin", "*");
+        
+        QHttpHeaders headers = NetworkResponse::getCorsHeaders();
         headers.append("Content-Disposition", QString("attachment; filename=\"%1\"").arg(context.fileName).toUtf8());
         headers.append("Accept-Ranges", "bytes");
         headers.append("Content-Type", context.contentType.toUtf8());

@@ -9,8 +9,8 @@
 #include "FileIndexer.h"
 
 namespace radar::network {
-    FileIndexer::FileIndexer(AudioRecordMapper *dbManager, QString ffprobePath, QObject *parent)
-        : QObject(parent), m_dbManager(dbManager), m_ffprobePath(std::move(ffprobePath)) {
+    FileIndexer::FileIndexer(AudioRecordMapper *dbManager, QObject *parent)
+        : QObject(parent), m_dbManager(dbManager) {
         m_timer = new QTimer(this);
         connect(m_timer, &QTimer::timeout, this, [this]() {
             auto res = this->scan();

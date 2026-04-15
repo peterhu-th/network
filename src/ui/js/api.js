@@ -1,12 +1,12 @@
 const BASE_URL = `http://${window.location.hostname}:8080/api`;
-const AUTH_TOKEN = 'user';
 
 export async function fetchAudioFiles(limit = 50, offset = 0) {
     try {
+        const token = localStorage.getItem('token') || '';
         const response = await fetch(`${BASE_URL}/files?limit=${limit}&offset=${offset}`, {
             method: 'GET',
             headers: {
-                    'Authorization': `Bearer ${AUTH_TOKEN}`
+                    'Authorization': `Bearer ${token}`
                 }
         });
         if (response.status === 401) {

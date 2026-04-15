@@ -23,7 +23,7 @@ namespace radar::network {
             return Result<void>::error("Service database init failed: " + db.lastError().text(), ErrorCode::DatabaseInitFailed);
         }
         m_mapper = std::make_shared<AudioRecordMapper>(m_netConfig.globalConnectionName);
-        m_fileIndexer = std::make_unique<FileIndexer>(m_mapper.get(), m_dbConfig.ffprobePath, this);
+        m_fileIndexer = std::make_unique<FileIndexer>(m_mapper.get(), this);
         return Result<void>::ok();
     }
 
@@ -37,34 +37,6 @@ namespace radar::network {
     }
 
     void AudioRecordService::stop() {}
-
-    Result<qint64> AudioRecordService::verifyToken(const QString& rawToken) const{
-        QString token = rawToken;
-        if (token.startsWith("Bearer ", Qt::CaseInsensitive)) {
-            token = token.mid(7).trimmed();
-        }
-        QStringList parts = token.split("_");
-        if (parts.size() != 3) {
-            return Result<qint64>::error("Invalid Token Format", ErrorCode::AuthorizationFailed);
-        }
-        qint64 uid = parts[0].toLongLong();
-        qint64 timestamp = parts[1].toLongLong();
-        const QString& sign = parts[2];
-        // 时效校验
-        qint64 currentTs = QDateTime::currentSecsSinceEpoch();
-        if (currentTs - timestamp > 7200 || currentTs - timestamp < 0) {
-            return Result<qint64>::error("Token Expired", ErrorCode::AuthorizationFailed);
-        }
-        // 验签: Hash(UID + "_" + TIME + "_" + SECRET)
-        QString dataToHash = parts[0] + "_" + parts[1] + "_" + m_netConfig.serverSecret;
-        QString expectedSign = QString(QCryptographicHash::hash(dataToHash.toUtf8(), QCryptographicHash::Sha256).toHex());
-
-        if (sign != expectedSign) {
-            return Result<qint64>::error("Signature Mismatch", ErrorCode::AuthorizationFailed);
-        }
-        // 返回 UID
-        return Result<qint64>::ok(uid);
-    }
 
     Result<int> AudioRecordService::getTotalCount(const QDateTime &startTime, const QDateTime &endTime) const {
         return m_mapper->countRecords(startTime, endTime);

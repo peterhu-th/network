@@ -4,34 +4,21 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const SERVER_URL = `http://${window.location.hostname}:8080/api`
-const SERVER_SECRET = 'RADAR_SECRET_KEY_2026'
-const CURRENT_UID = 105
 
 // 响应式数据：绑定到表格上
 const tableData = ref([])
 const loading = ref(false)
 
-// 生成动态 HMAC Token
-const generateHmacToken = async () => {
-  const timestamp = Math.floor(Date.now() / 1000)
-  const dataToHash = `${CURRENT_UID}_${timestamp}_${SERVER_SECRET}`
-
-  // 浏览器原生 SHA-256 哈希计算
-  const encoder = new TextEncoder()
-  const data = encoder.encode(dataToHash)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-
-  // 拼装 Token： UID_TIME_SIGN
-  return `${CURRENT_UID}_${timestamp}_${hashHex}`
+// 获取前端本地保存的 Token（实际应用中应由登录接口返回后保存至 localStorage）
+const getToken = () => {
+  return localStorage.getItem('token') || ''
 }
 
 // 获取文件列表
 const fetchFiles = async () => {
   loading.value = true
   try {
-    const token = await generateHmacToken()
+    const token = getToken()
     const response = await axios.get(`${SERVER_URL}/files`, {
       headers: { 'Authorization': `Bearer ${token}` },
       params: { limit: 50, offset: 0 }
@@ -66,7 +53,7 @@ const generateTimeFileName = (extension = 'mp3') => {
 const handleDownload = async (row: any) => {
   try {
     ElMessage.info(`正在下载文件 ID: ${row.id}...`)
-    const token = await generateHmacToken()
+    const token = getToken()
 
     const response = await axios({
       url: `${SERVER_URL}/download`,

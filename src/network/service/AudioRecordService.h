@@ -20,7 +20,6 @@ namespace radar::network {
         void start() const;
 
         static void stop();
-        [[nodiscard]] Result<qint64> verifyToken(const QString& rawToken) const;
         [[nodiscard]] Result<int> getTotalCount(const QDateTime& startTime, const QDateTime& endTime) const;
         [[nodiscard]] Result<std::vector<AudioRecordDTO>> getRecordPage(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) const;
         [[nodiscard]] Result<FileDownloadContext> prepareDownload(qint64 id, qint64 speedLimit, const QString& rangeHeader, QObject* streamParent) const;
