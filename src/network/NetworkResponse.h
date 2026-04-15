@@ -4,12 +4,27 @@
 #include <QHttpServerResponse>
 #include <QHttpHeaders>
 #include <QJsonObject>
-#include <QJsonArray>
 #include <QTcpServer>
 
 namespace radar::network {
-    class Response {
+    class NetworkResponse {
     public:
+        template <typename T>
+        static QHttpServerResponse fromResult(const Result<T>& result, QHttpServerResponse::StatusCode errHttpCode = QHttpServerResponse::StatusCode::BadRequest) {
+            if (!result.isOk()) {
+                return error(static_cast<int>(result.errorCode()), result.errorMessage(), errHttpCode);
+            }
+            // 在编译期判断 T 的类型
+            return success(extractData(result.value()));
+        }
+
+        static QHttpServerResponse fromResult(const Result<void>& result, QHttpServerResponse::StatusCode errHttpCode = QHttpServerResponse::StatusCode::BadRequest) {
+            if (result.isOk()) {
+                return success();
+            }
+            return error(static_cast<int>(result.errorCode()), result.errorMessage(), errHttpCode);
+        }
+
         // 成功响应 (包含数据)
         static QHttpServerResponse success(const QJsonValue& data) {
             QJsonObject res{
@@ -59,6 +74,15 @@ namespace radar::network {
             headers.append("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization");
             response.setHeaders(headers);
+        }
+
+        static QJsonValue extractData(const QJsonValue& val) {
+            return val;
+        }
+
+        template <typename DTO>
+        static auto extractData(const DTO& dto) -> decltype(dto.toJson()) {
+            return dto.toJson();
         }
     };
 }

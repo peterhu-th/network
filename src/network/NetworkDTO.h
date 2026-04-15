@@ -2,10 +2,11 @@
 #define NETWORK_DTO_H
 
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QMetaProperty>
 
 namespace radar::network {
-    // 前后端之间的 DTO
+    // 单条数据
     struct AudioRecordDTO {
         Q_GADGET    // 允许拷贝，适用于 DTO 和配置结构体
         
@@ -39,6 +40,24 @@ namespace radar::network {
                 QMetaProperty prop = metaObj->property(i);
                 obj.insert(QString::fromLatin1(prop.name()), QJsonValue::fromVariant(prop.readOnGadget(this)));
             }
+            return obj;
+        }
+    };
+
+    // 包装列表的 DTO
+    template <typename T>
+    struct PageDTO {
+        int total = 0;
+        std::vector<T> list;
+
+        [[nodiscard]] QJsonObject toJson() const {
+            QJsonObject obj;
+            obj["total"] = total;
+            QJsonArray arr;
+            for (const auto& item : list) {
+                arr.append(item.toJson());
+            }
+            obj["list"] = arr;
             return obj;
         }
     };

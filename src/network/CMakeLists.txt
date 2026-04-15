@@ -5,7 +5,7 @@ add_library(network
         utils/IdGenerator.cpp utils/IdGenerator.h
         utils/FileIndexer.cpp utils/FileIndexer.h
         utils/ThrottledFile.h
-        Response.h NetworkDTO.h
+        NetworkResponse.h NetworkDTO.h
 )
 
 find_package(Qt6 REQUIRED COMPONENTS Core Network Sql HttpServer)
