@@ -23,5 +23,17 @@
         "port": 8080,
         "serverSecret": "RADAR_SECRET_KEY_2026",
         "globalConnectionName": "Audio_GlobalPool"
-    }
+    },
+    "users": [
+        {
+            "id": 1,
+            "username": "admin",
+            "password": "sbzyx"
+        },
+        {
+            "id": 2,
+            "username": "guest",
+            "password": "zyxsb"
+        }
+    ]
 }

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+
+const router = useRouter()
 
 const SERVER_URL = `http://${window.location.hostname}:8080/api`
 
@@ -29,9 +32,15 @@ const fetchFiles = async () => {
     } else {
       ElMessage.error(response.data.message || '获取列表失败')
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error(error)
-    ElMessage.error('网络请求失败，请检查 C++ 后端是否启动')
+    if (error.response && error.response.status === 401) {
+      ElMessage.error('登录失效（Token 验证失败），请重新登录')
+      localStorage.removeItem('token')
+      router.push('/login')
+    } else {
+      ElMessage.error('网络请求失败，请检查 C++ 后端是否启动')
+    }
   } finally {
     loading.value = false
   }
@@ -82,6 +91,13 @@ const handleDownload = async (row: any) => {
   }
 }
 
+// 退出登录逻辑
+const handleLogout = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('username')
+  router.push('/login')
+}
+
 // 数据格式化函数
 const formatStartTime = (row: any, column: any, cellValue: string) => {
   if (!cellValue) return '-'
@@ -109,7 +125,10 @@ onMounted(() => {
       <template #header>
         <div class="card-header">
           <h2>雷达音频管理控制台</h2>
-          <el-button type="primary" :icon="'Refresh'" @click="fetchFiles">刷新列表</el-button>
+          <div style="display: flex; gap: 10px;">
+            <el-button type="primary" :icon="'Refresh'" @click="fetchFiles">刷新列表</el-button>
+            <el-button type="danger" @click="handleLogout">退出登录</el-button>
+          </div>
         </div>
       </template>
 

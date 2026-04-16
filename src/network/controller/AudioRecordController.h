@@ -28,6 +28,7 @@ namespace radar::network {
         QString m_jwtSecret;
 
         void setupRoutes() const;
+        [[nodiscard]] QHttpServerResponse handleLogin(const QHttpServerRequest& request) const;
         [[nodiscard]] Result<qint64> checkAuth(const QHttpServerRequest& request) const;
         [[nodiscard]] QHttpServerResponse handleListFiles(const QHttpServerRequest& request) const;
         void handleDownload(const QHttpServerRequest& request, QHttpServerResponder& responder) const;

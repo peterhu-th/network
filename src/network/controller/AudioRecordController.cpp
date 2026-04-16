@@ -16,7 +16,7 @@ namespace radar::network {
     Result<void> AudioRecordController::init(const DatabaseConfig& dbConfig, const NetworkConfig& netConfig) {
         m_port = netConfig.port;
         m_bindAddress = QHostAddress(netConfig.bindAddress);
-        if (network::serverSecret.isEmpty()) {
+        if (netConfig.serverSecret.isEmpty()) {
             return Result<void>::error("Server secret is missing in configuration", ErrorCode::InvalidConfig);
         }
         m_jwtSecret = netConfig.serverSecret;
@@ -51,14 +51,45 @@ namespace radar::network {
 
     void AudioRecordController::setupRoutes() const {
         auto optionsHandler = [](const QHttpServerRequest&) { return NetworkResponse::success(); };
+        m_httpServer->route("/api/login", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/api/files", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/api/download", QHttpServerRequest::Method::Options, optionsHandler);
+        m_httpServer->route("/api/login", QHttpServerRequest::Method::Post,
+            [this](const QHttpServerRequest& req) { return handleLogin(req); });
         m_httpServer->route("/api/files", QHttpServerRequest::Method::Get,
             [this](const QHttpServerRequest& req) { return handleListFiles(req); });
         m_httpServer->route("/api/download", QHttpServerRequest::Method::Get,
             [this](const QHttpServerRequest& req, QHttpServerResponder& responder) {
                 handleDownload(req, responder);
             });
+    }
+
+    QHttpServerResponse AudioRecordController::handleLogin(const QHttpServerRequest& request) const {
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(request.body(), &parseError);
+        if (parseError.error != QJsonParseError::NoError) {
+            return NetworkResponse::error(static_cast<int>(ErrorCode::InvalidParam), "Invalid JSON format", QHttpServerResponse::StatusCode::BadRequest);
+        }
+        
+        QJsonObject jsonObj = doc.object();
+        QString username = jsonObj.value("username").toString();
+        QString password = jsonObj.value("password").toString();
+
+        QByteArray inHashBytes = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256);
+        QString inHash = QString(inHashBytes.toHex());
+
+        const QList<UserConfig>& users = Config::instance().users();
+        for (const UserConfig& u : users) {
+            if (u.username == username && u.passwordHash == inHash) {
+                QString token = JwtUtils::generateToken(u.id, m_jwtSecret);
+                QJsonObject resData;
+                resData["token"] = token;
+                resData["username"] = u.username;
+                resData["id"] = u.id;
+                return NetworkResponse::success(resData);
+            }
+        }
+        return NetworkResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "用户名或密码错误", QHttpServerResponse::StatusCode::Unauthorized);
     }
 
     Result<qint64> AudioRecordController::checkAuth(const QHttpServerRequest& request) const {
@@ -76,8 +107,9 @@ namespace radar::network {
         if (!authRes.isOk()) {
             return NetworkResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponse::StatusCode::Unauthorized);
         }
-        //TODO: 处理 UID
         qint64 uid = authRes.value();
+        // 此处可基于 uid 追加业务，当前放行所有合法 Token
+        qDebug() << "ListFiles Request from UID:" << uid;
         // 提取 URL 参数
         QUrlQuery query = request.query();
         int limit = query.hasQueryItem("limit") ? query.queryItemValue("limit").toInt() : 20;
@@ -102,7 +134,7 @@ namespace radar::network {
         PageDTO<AudioRecordDTO> pageData;
         pageData.list = recordsRes.value();
         pageData.total = countRes.value();
-        return NetworkResponse::success(pageData);
+        return NetworkResponse::fromResult(Result<PageDTO<AudioRecordDTO>>::ok(pageData));
     }
 
    void AudioRecordController::handleDownload(const QHttpServerRequest& request, QHttpServerResponder& responder) const {

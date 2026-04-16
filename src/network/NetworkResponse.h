@@ -5,6 +5,7 @@
 #include <QHttpHeaders>
 #include <QJsonObject>
 #include <QTcpServer>
+#include <type_traits>
 
 namespace radar::network {
     class NetworkResponse {
@@ -14,8 +15,12 @@ namespace radar::network {
             if (!result.isOk()) {
                 return error(static_cast<int>(result.errorCode()), result.errorMessage(), errHttpCode);
             }
-            // 在编译期判断 T 的类型
-            return success(extractData(result.value()));
+            // 类型探测
+            if constexpr (std::is_convertible_v<T, QJsonValue>) {
+                return success(result.value());
+            } else {
+                return success(result.value().toJson());
+            }
         }
 
         static QHttpServerResponse fromResult(const Result<void>& result, QHttpServerResponse::StatusCode errHttpCode = QHttpServerResponse::StatusCode::BadRequest) {

@@ -8,6 +8,13 @@
 
 namespace radar {
 
+struct UserConfig {
+    qint64 id;
+    QString username;
+    QString password;
+    QString passwordHash;
+};
+
 struct AudioFrame {
     int64_t timestamp = 0;
     int sampleRate = 44100;

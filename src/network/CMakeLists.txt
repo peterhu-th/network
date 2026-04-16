@@ -5,6 +5,7 @@ add_library(network
         utils/IdGenerator.cpp utils/IdGenerator.h
         utils/FileIndexer.cpp utils/FileIndexer.h
         utils/ThrottledFile.h utils/JwtUtils.h
+        utils/JwtUtils.h utils/ThrottledFile.h
         NetworkResponse.h NetworkDTO.h
 )
 

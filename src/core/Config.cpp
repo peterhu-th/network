@@ -1,6 +1,8 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
+#include <QCryptographicHash>
 #include "Config.h"
 
 namespace radar {
@@ -38,6 +40,20 @@ bool Config::load(const QString& path) {
     m_netConfig.serverSecret = netObj["serverSecret"].toString();
     m_netConfig.globalConnectionName = netObj["globalConnectionName"].toString("Audio_GlobalPool");
 
+    if (rootObj.contains("users") && rootObj.value("users").isArray()) {
+        QJsonArray usersArr = rootObj.value("users").toArray();
+        for (const QJsonValue& val : usersArr) {
+            QJsonObject uObj = val.toObject();
+            UserConfig u;
+            u.id = uObj.value("id").toInt();
+            u.username = uObj.value("username").toString();
+            u.password = uObj.value("password").toString();
+            QByteArray hash = QCryptographicHash::hash(u.password.toUtf8(), QCryptographicHash::Sha256);
+            u.passwordHash = QString(hash.toHex());
+            m_users.append(u);
+        }
+    }
+
     return true;
 }
 
@@ -71,6 +87,10 @@ network::DatabaseConfig Config::databaseConfig() const {
 
 QString Config::authToken() const {
     return m_netConfig.serverSecret;
+}
+
+QList<UserConfig> Config::users() const {
+    return m_users;
 }
 
 }

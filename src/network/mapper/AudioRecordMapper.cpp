@@ -45,6 +45,27 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
+    Result<std::vector<std::pair<qint64, QString>>> AudioRecordMapper::getAllFilePaths() const {
+        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        if (!db.isOpen()) {
+            return Result<std::vector<std::pair<qint64, QString>>>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
+
+        QSqlQuery query(db);
+        if (!query.exec("SELECT id, file_path FROM audio_records")) {
+            return Result<std::vector<std::pair<qint64, QString>>>::error("Query all file paths failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        }
+
+        std::vector<std::pair<qint64, QString>> results;
+        while (query.next()) {
+            qint64 id = query.value("id").toLongLong();
+            QString path = query.value("file_path").toString();
+            results.emplace_back(id, path);
+        }
+
+        return Result<std::vector<std::pair<qint64, QString>>>::ok(results);
+    }
+
     Result<void> AudioRecordMapper::insertRecord(const AudioRecord &record) const {
         QSqlDatabase db = QSqlDatabase::database(m_connectionName);
         if (!db.isOpen()) return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
@@ -63,6 +84,23 @@ namespace radar::network {
         if (!query.exec()) {
             return Result<void>::error("Insert failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
         }
+        return Result<void>::ok();
+    }
+
+    Result<void> AudioRecordMapper::deleteRecord(qint64 id) const {
+        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        if (!db.isOpen()) {
+            return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
+
+        QSqlQuery query(db);
+        query.prepare("DELETE FROM audio_records WHERE id = :id");
+        query.bindValue(":id", QVariant::fromValue(id));
+
+        if (!query.exec()) {
+            return Result<void>::error("Delete record failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        }
+
         return Result<void>::ok();
     }
 

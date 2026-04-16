@@ -3,6 +3,8 @@
 
 #include <QString>
 #include <QVariantMap>
+#include <QList>
+#include "Types.h"
 #include "../network/NetworkDTO.h"
 
 namespace radar {
@@ -22,12 +24,14 @@ public:
     network::NetworkConfig networkConfig() const;
     network::DatabaseConfig databaseConfig() const;
 	QString authToken() const;
+    QList<UserConfig> users() const;
 
 private:
     Config() = default;
     QVariantMap m_config;
     network::DatabaseConfig m_dbConfig;
     network::NetworkConfig m_netConfig;
+    QList<UserConfig> m_users;
 };
 
 }
