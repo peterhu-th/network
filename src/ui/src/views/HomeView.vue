@@ -12,6 +12,15 @@ const SERVER_URL = `http://${window.location.hostname}:8080`
 const tableData = ref([])
 const loading = ref(false)
 
+// 分页与选择数据
+const currentPage = ref(1)
+const pageSize = ref(24)
+const totalCount = ref(0)
+const selectedIds = ref<number[]>([])
+
+// 批量下载整页的转圈模式
+const downloadingMode = ref(false)
+
 // 过滤条件模型
 const filterForm = reactive({
   format: '',
@@ -28,7 +37,10 @@ const fetchFiles = async (isRefresh = false) => {
   loading.value = true
   try {
     const token = getToken()
-    let requestParams: any = { limit: 50, offset: 0 }
+    let requestParams: any = { 
+      limit: pageSize.value, 
+      offset: (currentPage.value - 1) * pageSize.value 
+    }
     
     // 强制扫描参数
     if (isRefresh === true) {
@@ -54,6 +66,7 @@ const fetchFiles = async (isRefresh = false) => {
 
     if (response.data.code === 20000) {
       tableData.value = response.data.data.list
+      totalCount.value = response.data.data.total
     } else {
       ElMessage.error(response.data.message || '获取列表失败')
     }
@@ -112,8 +125,88 @@ const handleDownload = async (row: any) => {
 
   } catch (error) {
     console.error(error)
-    ElMessage.error('下载失败，文件可能不存在或无权限')
+    ElMessage.error('下载失败，文件不存在或无权限')
   }
+}
+
+// 勾选状态监听
+const handleSelectionChange = (selection: any[]) => {
+  selectedIds.value = selection.map(row => row.id)
+}
+
+// 分页变化监听
+const handlePageChange = (val: number) => {
+  currentPage.value = val
+  fetchFiles(false)
+}
+
+// 提取公共的异步轮询下载方法
+const performBatchDownload = async (ids: number[]) => {
+  if (ids.length === 0) {
+    ElMessage.warning('当前列表中没有可供下载的文件')
+    return
+  }
+
+  const token = getToken()
+  downloadingMode.value = true
+
+  const pollStatus = async () => {
+    try {
+      const response = await axios.post(`${SERVER_URL}/download/batch`, { ids }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (response.data.code !== 20000) {
+        throw new Error(response.data.message)
+      }
+
+      const { status, url } = response.data.data
+
+      if (status === 'Processing') {
+        // 每 1.5 秒轮询一次
+        setTimeout(pollStatus, 3000)
+      } else if (status === 'Completed' && url) {
+        const fileResponse = await axios.get(`${SERVER_URL}${url}`, {
+          responseType: 'blob',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+
+        const blob = new Blob([fileResponse.data], { type: fileResponse.headers['content-type'] || 'application/zip' })
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+
+        link.href = downloadUrl
+        link.download = generateTimeFileName('zip') // 下载成 zip 压缩包
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(downloadUrl)
+
+        ElMessage.success('批量下载成功！')
+        downloadingMode.value = false
+      } else {
+        throw new Error('批量打包意外中断或失败')
+      }
+    } catch (error: any) {
+      console.error(error)
+      ElMessage.error(error.message || '批量下载失败，可能网络中断或服务器错误')
+      downloadingMode.value = false
+    }
+  }
+
+  // 第一次激发出错尝试与注册轮询机制
+  pollStatus()
+}
+
+// 批量下载当前页动作
+const handleBatchDownloadPage = () => {
+  const ids = tableData.value.map((row: any) => row.id)
+  performBatchDownload(ids)
+}
+
+// 批量下载选中项动作
+const handleBatchDownloadSelected = () => {
+  performBatchDownload(selectedIds.value)
 }
 
 // 退出登录逻辑
@@ -149,7 +242,7 @@ onMounted(() => {
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
-          <h2>雷达音频管理控制台</h2>
+          <h2>雷达音频下载</h2>
           <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             <!-- 筛选器 -->
             <el-select v-model="filterForm.format" placeholder="文件类型" clearable style="width: 120px" @change="() => fetchFiles(false)">
@@ -172,6 +265,8 @@ onMounted(() => {
 
             <!-- 按钮 -->
             <el-button type="primary" :icon="'Refresh'" @click="() => fetchFiles(true)">搜索 / 刷新</el-button>
+            <el-button type="warning" :icon="'Download'" @click="handleBatchDownloadPage" element-loading-text="📦 批量打包中，请耐心等待..." v-loading.fullscreen.lock="downloadingMode">下载本页</el-button>
+            <el-button type="info" :icon="'Download'" @click="handleBatchDownloadSelected" element-loading-text="📦 正在打包选中文件..." v-loading.fullscreen.lock="downloadingMode">下载选中项</el-button>
             <el-button type="danger" @click="handleLogout">退出登录</el-button>
           </div>
         </div>
@@ -179,7 +274,9 @@ onMounted(() => {
 
       <!-- 数据表格 -->
       <!-- 数据表格 -->
-      <el-table :data="tableData" v-loading="loading" stripe border style="width: 100%">
+      <el-table :data="tableData" v-loading="loading" stripe border style="width: 100%" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" align="center" />
+        
         <el-table-column prop="generationTime" label="起始时间" :formatter="formatStartTime" min-width="180" align="center" />
 
         <el-table-column prop="duration" label="时长 (秒)" width="120" align="center" />
@@ -195,6 +292,18 @@ onMounted(() => {
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页区域 -->
+      <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+        <el-pagination
+          background
+          layout="total, prev, pager, next"
+          :total="totalCount"
+          :page-size="pageSize"
+          v-model:current-page="currentPage"
+          @current-change="handlePageChange"
+        />
+      </div>
     </el-card>
   </div>
 </template>

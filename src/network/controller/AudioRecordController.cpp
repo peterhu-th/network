@@ -54,13 +54,33 @@ namespace radar::network {
         m_httpServer->route("/login", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/files", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/download", QHttpServerRequest::Method::Options, optionsHandler);
+        m_httpServer->route("/download/batch", QHttpServerRequest::Method::Options, optionsHandler);
+        m_httpServer->route("/download/batch/file/<arg>", QHttpServerRequest::Method::Options, [](const QString&, const QHttpServerRequest&) { return NetworkResponse::success(); });
+        
         m_httpServer->route("/login", QHttpServerRequest::Method::Post,
-            [this](const QHttpServerRequest& req) { return handleLogin(req); });
+            [this](const QHttpServerRequest& req) { 
+                qDebug().noquote() << "[Network Request] POST /login from" << req.remoteAddress().toString();
+                return handleLogin(req); 
+            });
         m_httpServer->route("/files", QHttpServerRequest::Method::Get,
-            [this](const QHttpServerRequest& req) { return handleListFiles(req); });
+            [this](const QHttpServerRequest& req) { 
+                qDebug().noquote() << "[Network Request] GET /files from" << req.remoteAddress().toString();
+                return handleListFiles(req); 
+            });
         m_httpServer->route("/download", QHttpServerRequest::Method::Get,
             [this](const QHttpServerRequest& req, QHttpServerResponder& responder) {
+                qDebug().noquote() << "[Network Request] GET /download from" << req.remoteAddress().toString();
                 handleDownload(req, responder);
+            });
+        m_httpServer->route("/download/batch", QHttpServerRequest::Method::Post,
+            [this](const QHttpServerRequest& req) {
+                qDebug().noquote() << "[Network Request] POST /download/batch from" << req.remoteAddress().toString();
+                return handleBatchDownloadJob(req);
+            });
+        m_httpServer->route("/download/batch/file/<arg>", QHttpServerRequest::Method::Get,
+            [this](const QString& taskId, const QHttpServerRequest& req, QHttpServerResponder& responder) {
+                qDebug().noquote() << "[Network Request] GET /download/batch/file/" << taskId << "from" << req.remoteAddress().toString();
+                handleBatchDownloadFile(req, responder, taskId);
             });
     }
 
@@ -183,5 +203,53 @@ namespace radar::network {
             statusCode = QHttpServerResponder::StatusCode::PartialContent;
         }
         responder.write(context.stream, headers, statusCode);
+    }
+
+    QHttpServerResponse AudioRecordController::handleBatchDownloadJob(const QHttpServerRequest& request) const {
+        auto authRes = checkAuth(request);
+        if (!authRes.isOk()) {
+            return NetworkResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponse::StatusCode::Unauthorized);
+        }
+        QJsonDocument doc = QJsonDocument::fromJson(request.body());
+        if (doc.isNull() || !doc.object().contains("ids")) {
+            return NetworkResponse::error(static_cast<int>(ErrorCode::InvalidParam), "Missing ids array", QHttpServerResponse::StatusCode::BadRequest);
+        }
+        QJsonArray idsArray = doc.object()["ids"].toArray();
+        QList<qint64> ids;
+        for (const QJsonValue v : idsArray) {
+            ids.append(static_cast<qint64>(v.toVariant().toLongLong()));
+        }
+        auto res = m_service->getOrSubmitBatchJob(ids);
+        if (!res.isOk()) {
+            return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
+        }
+        const JobStatus& job = res.value();
+        QJsonObject data;
+        data["status"] = job.status;
+        if (job.status == "Completed") {
+            data["url"] = "/download/batch/file/" + job.taskId;
+        }
+        return NetworkResponse::success(data);
+    }
+
+    void AudioRecordController::handleBatchDownloadFile(const QHttpServerRequest& request, QHttpServerResponder& responder, const QString& taskId) const {
+        auto authRes = checkAuth(request);
+        if (!authRes.isOk()) {
+            NetworkResponse::writeError(responder, static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponder::StatusCode::Unauthorized);
+            return;
+        }
+        auto res = m_service->getBatchFile(taskId, const_cast<AudioRecordController*>(this));
+        if (!res.isOk()) {
+            NetworkResponse::writeError(responder, static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponder::StatusCode::NotFound);
+            return;
+        }
+
+        const auto& context = res.value();
+        connect(context.stream, &QIODevice::aboutToClose, context.stream, &QObject::deleteLater);
+        QHttpHeaders headers = NetworkResponse::getCorsHeaders();
+        QByteArray encodedFileName = QUrl::toPercentEncoding(context.fileName);
+        headers.append("Content-Disposition", QByteArray("attachment; filename*=UTF-8''") + encodedFileName);
+        headers.append("Content-Type", context.contentType.toUtf8());
+        responder.write(context.stream, headers, QHttpServerResponder::StatusCode::Ok);
     }
 }

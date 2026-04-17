@@ -1,4 +1,4 @@
-const BASE_URL = `http://${window.location.hostname}:8080/api`;
+const BASE_URL = `http://${window.location.hostname}:8080`;
 
 export async function fetchAudioFiles(limit = 50, offset = 0) {
     try {
