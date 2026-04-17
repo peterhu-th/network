@@ -33,6 +33,7 @@ bool Config::load(const QString& path) {
     m_dbConfig.dbName = dbObj["dbName"].toString("audio");
     m_dbConfig.username = dbObj["username"].toString("postgres");
     m_dbConfig.passWord = dbObj["passWord"].toString();
+    m_dbConfig.storagePath = dbObj["storagePath"].toString();
 
     QJsonObject netObj = rootObj["network"].toObject();
     m_netConfig.bindAddress = netObj["bindAddress"].toString("127.0.0.1");

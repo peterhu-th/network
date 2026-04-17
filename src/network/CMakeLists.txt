@@ -18,6 +18,7 @@ target_include_directories(network PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${TAGLIB_INCLUDE_DIRS}
         ${CMAKE_SOURCE_DIR}/third-party/jwt-cpp/include
+        ${CMAKE_SOURCE_DIR}/third_party/miniz
 )
 
 target_link_libraries(network PUBLIC

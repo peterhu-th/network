@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 
-const SERVER_URL = `http://${window.location.hostname}:8080/api`
+const SERVER_URL = `http://${window.location.hostname}:8080`
 
 // 响应式数据：绑定到表格上
 const tableData = ref([])
 const loading = ref(false)
+
+// 过滤条件模型
+const filterForm = reactive({
+  format: '',
+  dateRange: null as [Date, Date] | null
+})
 
 // 获取前端本地保存的 Token（实际应用中应由登录接口返回后保存至 localStorage）
 const getToken = () => {
@@ -18,13 +24,32 @@ const getToken = () => {
 }
 
 // 获取文件列表
-const fetchFiles = async () => {
+const fetchFiles = async (isRefresh = false) => {
   loading.value = true
   try {
     const token = getToken()
+    let requestParams: any = { limit: 50, offset: 0 }
+    
+    // 强制扫描参数
+    if (isRefresh === true) {
+      requestParams.forceScan = 'true'
+    }
+    
+    // 注入格式与时间过滤
+    if (filterForm.format) {
+      requestParams.format = filterForm.format
+    }
+    if (filterForm.dateRange && filterForm.dateRange.length === 2 && filterForm.dateRange[0] && filterForm.dateRange[1]) {
+      const start = new Date(filterForm.dateRange[0])
+      const end = new Date(filterForm.dateRange[1])
+      end.setHours(23, 59, 59, 999)
+      requestParams.startTime = start.toISOString()
+      requestParams.endTime = end.toISOString()
+    }
+
     const response = await axios.get(`${SERVER_URL}/files`, {
       headers: { 'Authorization': `Bearer ${token}` },
-      params: { limit: 50, offset: 0 }
+      params: requestParams
     })
 
     if (response.data.code === 20000) {
@@ -125,8 +150,28 @@ onMounted(() => {
       <template #header>
         <div class="card-header">
           <h2>雷达音频管理控制台</h2>
-          <div style="display: flex; gap: 10px;">
-            <el-button type="primary" :icon="'Refresh'" @click="fetchFiles">刷新列表</el-button>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <!-- 筛选器 -->
+            <el-select v-model="filterForm.format" placeholder="文件类型" clearable style="width: 120px" @change="() => fetchFiles(false)">
+              <el-option label="所有" value="" />
+              <el-option label="MP3" value="mp3" />
+              <el-option label="WAV" value="wav" />
+              <el-option label="M4A" value="m4a" />
+            </el-select>
+
+            <el-date-picker
+              v-model="filterForm.dateRange"
+              type="daterange"
+              unlink-panels
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              style="width: 250px"
+              @change="() => fetchFiles(false)"
+            />
+
+            <!-- 按钮 -->
+            <el-button type="primary" :icon="'Refresh'" @click="() => fetchFiles(true)">搜索 / 刷新</el-button>
             <el-button type="danger" @click="handleLogout">退出登录</el-button>
           </div>
         </div>

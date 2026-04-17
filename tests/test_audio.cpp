@@ -1,6 +1,5 @@
 #include <QCoreApplication>
 #include <QTimer>
-#include <QDebug>
 #include <QObject>
 
 #include "../src/audio/AudioSourceFactory.h"

@@ -18,7 +18,7 @@ namespace radar::network {
         ~AudioRecordController() override;
         Result<void> init(const DatabaseConfig& dbConfig, const NetworkConfig& netConfig);
         [[nodiscard]] Result<void> start() const;
-        void stop();
+        static void stop();
 
     private:
         std::unique_ptr<AudioRecordService> m_service;

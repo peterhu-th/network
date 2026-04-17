@@ -51,14 +51,14 @@ namespace radar::network {
 
     void AudioRecordController::setupRoutes() const {
         auto optionsHandler = [](const QHttpServerRequest&) { return NetworkResponse::success(); };
-        m_httpServer->route("/api/login", QHttpServerRequest::Method::Options, optionsHandler);
-        m_httpServer->route("/api/files", QHttpServerRequest::Method::Options, optionsHandler);
-        m_httpServer->route("/api/download", QHttpServerRequest::Method::Options, optionsHandler);
-        m_httpServer->route("/api/login", QHttpServerRequest::Method::Post,
+        m_httpServer->route("/login", QHttpServerRequest::Method::Options, optionsHandler);
+        m_httpServer->route("/files", QHttpServerRequest::Method::Options, optionsHandler);
+        m_httpServer->route("/download", QHttpServerRequest::Method::Options, optionsHandler);
+        m_httpServer->route("/login", QHttpServerRequest::Method::Post,
             [this](const QHttpServerRequest& req) { return handleLogin(req); });
-        m_httpServer->route("/api/files", QHttpServerRequest::Method::Get,
+        m_httpServer->route("/files", QHttpServerRequest::Method::Get,
             [this](const QHttpServerRequest& req) { return handleListFiles(req); });
-        m_httpServer->route("/api/download", QHttpServerRequest::Method::Get,
+        m_httpServer->route("/download", QHttpServerRequest::Method::Get,
             [this](const QHttpServerRequest& req, QHttpServerResponder& responder) {
                 handleDownload(req, responder);
             });
@@ -115,18 +115,28 @@ namespace radar::network {
         int limit = query.hasQueryItem("limit") ? query.queryItemValue("limit").toInt() : 20;
         int offset = query.hasQueryItem("offset") ? query.queryItemValue("offset").toInt() : 0;
         if (limit <= 0) limit = 20;
+        
+        if (query.hasQueryItem("forceScan") && query.queryItemValue("forceScan") == "true") {
+            qDebug() << "Executing manual scan on request...";
+            auto res = m_service->forceScan();
+            if (!res.isOk()) {
+                return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
+            }
+        }
 
         QDateTime startTime;
         QDateTime endTime;
         if (query.hasQueryItem("startTime")) startTime = QDateTime::fromString(query.queryItemValue("startTime"), Qt::ISODate);
         if (query.hasQueryItem("endTime")) endTime = QDateTime::fromString(query.queryItemValue("endTime"), Qt::ISODate);
+        
+        QString format = query.hasQueryItem("format") ? query.queryItemValue("format") : "";
 
-        auto recordsRes = m_service->getRecordPage(startTime, endTime, limit, offset);
+        auto recordsRes = m_service->getRecordPage(startTime, endTime, format, limit, offset);
         if (!recordsRes.isOk()) {
             return NetworkResponse::error(static_cast<int>(recordsRes.errorCode()), recordsRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }
 
-        auto countRes = m_service->getTotalCount(startTime, endTime);
+        auto countRes = m_service->getTotalCount(startTime, endTime, format);
         if (!countRes.isOk()) {
             return NetworkResponse::error(static_cast<int>(countRes.errorCode()), countRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }

@@ -19,6 +19,8 @@ namespace radar::network {
         db.setDatabaseName(dbConfig.dbName);
         db.setUserName(dbConfig.username);
         db.setPassword(dbConfig.passWord);
+        // 防止数据库连接默认等待
+        db.setConnectOptions("connect_timeout=1");
         if (!db.open()) {
             return Result<void>::error("Service database init failed: " + db.lastError().text(), ErrorCode::DatabaseInitFailed);
         }
@@ -35,15 +37,25 @@ namespace radar::network {
             }
         }
     }
+    
+    Result<void> AudioRecordService::forceScan() const {
+        if (m_fileIndexer) {
+            auto res = m_fileIndexer->scan();
+            if (!res.isOk()) {
+                return Result<void>::error(res.errorMessage(), res.errorCode());
+            }
+        }
+        return Result<void>::ok();
+    }
 
     void AudioRecordService::stop() {}
 
-    Result<int> AudioRecordService::getTotalCount(const QDateTime &startTime, const QDateTime &endTime) const {
-        return m_mapper->countRecords(startTime, endTime);
+    Result<int> AudioRecordService::getTotalCount(const QDateTime &startTime, const QDateTime &endTime, const QString& format) const {
+        return m_mapper->countRecords(startTime, endTime, format);
     }
 
-    Result<std::vector<AudioRecordDTO>> AudioRecordService::getRecordPage(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) const {
-        auto dbResult = m_mapper->queryRecords(startTime, endTime, limit, offset);
+    Result<std::vector<AudioRecordDTO>> AudioRecordService::getRecordPage(const QDateTime& startTime, const QDateTime& endTime, const QString& format, int limit, int offset) const {
+        auto dbResult = m_mapper->queryRecords(startTime, endTime, format, limit, offset);
         if (!dbResult.isOk()) {
             return Result<std::vector<AudioRecordDTO>>::error(dbResult.errorMessage(), dbResult.errorCode());
         }
