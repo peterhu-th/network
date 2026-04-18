@@ -11,13 +11,6 @@
 #include "../mapper/AudioRecordMapper.h"
 
 namespace radar::network {
-    struct JobStatus {
-        QString taskId;
-        QString status;      // "Pending", "Processing", "Completed", "Failed"
-        QString resultPath;
-        qint64 createdAt;
-    };
-
     class AudioRecordService : public QObject {
         Q_OBJECT
 
@@ -27,8 +20,6 @@ namespace radar::network {
         [[nodiscard]] Result<void> init(const DatabaseConfig& dbConfig, const NetworkConfig& netConfig);
         void start() const;
         [[nodiscard]] Result<void> forceScan() const;
-
-        static void stop();
         [[nodiscard]] Result<int> getTotalCount(const QDateTime& startTime, const QDateTime& endTime, const QString& format = "") const;
         [[nodiscard]] Result<std::vector<AudioRecordDTO>> getRecordPage(const QDateTime& startTime, const QDateTime& endTime, const QString& format = "", int limit = 100, int offset = 0) const;
         [[nodiscard]] Result<FileDownloadContext> prepareDownload(qint64 id, qint64 speedLimit, const QString& rangeHeader, QObject* streamParent) const;
@@ -43,7 +34,7 @@ namespace radar::network {
         NetworkConfig m_netConfig;
         mutable QReadWriteLock m_jobsLock;
         QHash<QString, JobStatus> m_jobs;
-        void garbageCollectJobs();    // 清理垃圾任务和文件
+        void garbageCollectJobs();
     };
 }
 

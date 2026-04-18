@@ -16,6 +16,7 @@ src/
 └── network/           # 本地网络服务（待开发）
 config/
 tests/
+third-party/
 ```
 
 ## 构建

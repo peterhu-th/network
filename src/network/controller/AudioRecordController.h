@@ -32,7 +32,7 @@ namespace radar::network {
         [[nodiscard]] Result<qint64> checkAuth(const QHttpServerRequest& request) const;
         [[nodiscard]] QHttpServerResponse handleListFiles(const QHttpServerRequest& request) const;
         void handleDownload(const QHttpServerRequest& request, QHttpServerResponder& responder) const;
-        [[nodiscard]] QHttpServerResponse handleBatchDownloadJob(const QHttpServerRequest& request) const;
+        [[nodiscard]] QHttpServerResponse handleBatchDownloadJob(const QHttpServerRequest& request) const;  // 批量下载任务
         void handleBatchDownloadFile(const QHttpServerRequest& request, QHttpServerResponder& responder, const QString& taskId) const;
     };
 }

@@ -1,14 +1,14 @@
 #include <QDebug>
 #include <QSqlDatabase>
 #include <QSqlError>
-#include <QFileInfo>
 #include <QMimeDatabase>
+#include <QDir>
+#include <QtConcurrent/QtConcurrentRun>
+#include <QFuture>
 #include "AudioRecordService.h"
 #include "../mapper/AudioRecordMapper.h"
 #include "../utils/ThrottledFile.h"
 #include "../utils/ZipUtils.h"
-#include <QDir>
-#include <QtConcurrent>
 
 namespace radar::network {
     AudioRecordService::AudioRecordService(QObject *parent): QObject(parent) {}
@@ -49,8 +49,6 @@ namespace radar::network {
         }
         return Result<void>::ok();
     }
-
-    void AudioRecordService::stop() {}
 
     Result<int> AudioRecordService::getTotalCount(const QDateTime &startTime, const QDateTime &endTime, const QString& format) const {
         return m_mapper->countRecords(startTime, endTime, format);
@@ -146,15 +144,13 @@ namespace radar::network {
         for (qint64 id : sortedIds) idBytes.append(QString::number(id).toUtf8() + ",");
         QByteArray hashBytes = QCryptographicHash::hash(idBytes, QCryptographicHash::Sha256);
         QString taskId = QString(hashBytes.toHex());
-        
-        // 任务已存在，提取进度返回
+        // 限制作用域，减小锁粒度
         {
             QReadLocker locker(&m_jobsLock);
             if (m_jobs.contains(taskId)) {
                 return Result<JobStatus>::ok(m_jobs[taskId]);
             }
         }
-
         JobStatus newJob;
         newJob.taskId = taskId;
         newJob.status = "Processing";
@@ -173,13 +169,12 @@ namespace radar::network {
                 filePaths.append(pathRes.value());
             }
         }
-
         if (filePaths.isEmpty()) {
             QWriteLocker locker(&m_jobsLock);
             m_jobs[taskId].status = "Failed";
             return Result<JobStatus>::error("Empty valid files", ErrorCode::RecordNotFound);
         }
-        // 异步并发
+        // 开启后台线程打包下载，异步非阻塞
         (void) QtConcurrent::run([this, taskId, filePaths, resultPath = newJob.resultPath]() {
             auto res = ZipUtils::createZip(filePaths, resultPath);
             QWriteLocker locker(&m_jobsLock);
@@ -187,7 +182,6 @@ namespace radar::network {
                 m_jobs[taskId].status = res.isOk() ? "Completed" : "Failed";
             }
         });
-        // 返回状态为 Processing
         return Result<JobStatus>::ok(newJob);
     }
 
@@ -209,16 +203,16 @@ namespace radar::network {
         if (!fileInfo.exists()) {
             return Result<FileDownloadContext>::error("Zip file missing on disk", ErrorCode::FileNotExist);
         }
-        FileDownloadContext ctx;
-        ctx.fileName = "batch_records_" + taskId.left(6) + ".zip";
-        ctx.contentType = "application/zip";
-        ctx.fileSize = fileInfo.size();
-        ctx.endPos = ctx.fileSize - 1;
+        FileDownloadContext context;
+        context.fileName = "batch_records_" + taskId.left(6) + ".zip";
+        context.contentType = "application/zip";
+        context.fileSize = fileInfo.size();
+        context.endPos = context.fileSize - 1;
         auto file = std::make_unique<ThrottledFile>(resultPath, 0, streamParent); 
         if (!file->open(QIODevice::ReadOnly)) {
             return Result<FileDownloadContext>::error("File unreadable", ErrorCode::NetworkFileIOFailed);
         }
-        ctx.stream = file.release();
-        return Result<FileDownloadContext>::ok(ctx);
+        context.stream = file.release();
+        return Result<FileDownloadContext>::ok(context);
     }
 }

@@ -5,7 +5,7 @@
 #include <QString>
 #include <QTimer>
 #include "../core/Types.h"
-#include "mapper/AudioRecordMapper.h"
+#include "../mapper/AudioRecordMapper.h"
 #include "../NetworkDTO.h"
 
 namespace radar::network {

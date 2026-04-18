@@ -56,7 +56,7 @@ namespace radar::network {
         m_httpServer->route("/download", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/download/batch", QHttpServerRequest::Method::Options, optionsHandler);
         m_httpServer->route("/download/batch/file/<arg>", QHttpServerRequest::Method::Options, [](const QString&, const QHttpServerRequest&) { return NetworkResponse::success(); });
-        
+
         m_httpServer->route("/login", QHttpServerRequest::Method::Post,
             [this](const QHttpServerRequest& req) { 
                 qDebug().noquote() << "[Network Request] POST /login from" << req.remoteAddress().toString();
@@ -85,19 +85,19 @@ namespace radar::network {
     }
 
     QHttpServerResponse AudioRecordController::handleLogin(const QHttpServerRequest& request) const {
+        // 用 parseError 记录错误
         QJsonParseError parseError;
         QJsonDocument doc = QJsonDocument::fromJson(request.body(), &parseError);
         if (parseError.error != QJsonParseError::NoError) {
             return NetworkResponse::error(static_cast<int>(ErrorCode::InvalidParam), "Invalid JSON format", QHttpServerResponse::StatusCode::BadRequest);
         }
-        
         QJsonObject jsonObj = doc.object();
         QString username = jsonObj.value("username").toString();
         QString password = jsonObj.value("password").toString();
-
+        // Hash 加密对比
         QByteArray inHashBytes = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256);
         QString inHash = QString(inHashBytes.toHex());
-
+        // 提取用户配置并对比
         const QList<UserConfig>& users = Config::instance().users();
         for (const UserConfig& u : users) {
             if (u.username == username && u.passwordHash == inHash) {
@@ -109,7 +109,7 @@ namespace radar::network {
                 return NetworkResponse::success(resData);
             }
         }
-        return NetworkResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "用户名或密码错误", QHttpServerResponse::StatusCode::Unauthorized);
+        return NetworkResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "Wrong user or password", QHttpServerResponse::StatusCode::Unauthorized);
     }
 
     Result<qint64> AudioRecordController::checkAuth(const QHttpServerRequest& request) const {
@@ -128,14 +128,14 @@ namespace radar::network {
             return NetworkResponse::error(static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponse::StatusCode::Unauthorized);
         }
         qint64 uid = authRes.value();
-        // 此处可基于 uid 追加业务，当前放行所有合法 Token
+        // 放行所有合法 Token
         qDebug() << "ListFiles Request from UID:" << uid;
         // 提取 URL 参数
         QUrlQuery query = request.query();
         int limit = query.hasQueryItem("limit") ? query.queryItemValue("limit").toInt() : 20;
         int offset = query.hasQueryItem("offset") ? query.queryItemValue("offset").toInt() : 0;
         if (limit <= 0) limit = 20;
-        
+        // 接收刷新请求时重新扫描本地文件并更新数据库
         if (query.hasQueryItem("forceScan") && query.queryItemValue("forceScan") == "true") {
             qDebug() << "Executing manual scan on request...";
             auto res = m_service->forceScan();
@@ -143,19 +143,16 @@ namespace radar::network {
                 return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
             }
         }
-
         QDateTime startTime;
         QDateTime endTime;
         if (query.hasQueryItem("startTime")) startTime = QDateTime::fromString(query.queryItemValue("startTime"), Qt::ISODate);
         if (query.hasQueryItem("endTime")) endTime = QDateTime::fromString(query.queryItemValue("endTime"), Qt::ISODate);
-        
         QString format = query.hasQueryItem("format") ? query.queryItemValue("format") : "";
 
         auto recordsRes = m_service->getRecordPage(startTime, endTime, format, limit, offset);
         if (!recordsRes.isOk()) {
             return NetworkResponse::error(static_cast<int>(recordsRes.errorCode()), recordsRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }
-
         auto countRes = m_service->getTotalCount(startTime, endTime, format);
         if (!countRes.isOk()) {
             return NetworkResponse::error(static_cast<int>(countRes.errorCode()), countRes.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
@@ -178,26 +175,25 @@ namespace radar::network {
             NetworkResponse::writeError(responder, static_cast<int>(ErrorCode::InvalidParam), "Missing 'id' parameter", QHttpServerResponder::StatusCode::Unauthorized);
             return;
         }
-
+        // 设置限速
         qint64 id = query.queryItemValue("id").toLongLong();
         qint64 speed = query.hasQueryItem("speed") ? query.queryItemValue("speed").toLongLong() * 1024 : 0;
         QString rangeHeader = QString::fromUtf8(request.value("Range"));
 
         auto downloadRes = m_service->prepareDownload(id, speed, rangeHeader, const_cast<AudioRecordController*>(this));
         if (!downloadRes.isOk()) {
-            NetworkResponse::writeError(responder, static_cast<int>(downloadRes.errorCode()), downloadRes.errorMessage(), QHttpServerResponder::StatusCode::NotFound);            return;
+            NetworkResponse::writeError(responder, static_cast<int>(downloadRes.errorCode()), downloadRes.errorMessage(), QHttpServerResponder::StatusCode::NotFound);
+            return;
         }
-
         const auto& context = downloadRes.value();
         connect(context.stream, &QIODevice::aboutToClose, context.stream, &QObject::deleteLater);
-        
+        // 解析跨域头
         QHttpHeaders headers = NetworkResponse::getCorsHeaders();
         headers.append("Content-Disposition", QString("attachment; filename=\"%1\"").arg(context.fileName).toUtf8());
         headers.append("Accept-Ranges", "bytes");
         headers.append("Content-Type", context.contentType.toUtf8());
-
         QHttpServerResponder::StatusCode statusCode = QHttpServerResponder::StatusCode::Ok;
-
+        // 断点续传
         if (context.isPartial) {
             headers.append("Content-Range", QString("bytes %1-%2/%3").arg(context.startPos).arg(context.endPos).arg(context.fileSize).toUtf8());
             statusCode = QHttpServerResponder::StatusCode::PartialContent;
@@ -217,19 +213,13 @@ namespace radar::network {
         QJsonArray idsArray = doc.object()["ids"].toArray();
         QList<qint64> ids;
         for (const QJsonValue v : idsArray) {
-            ids.append(static_cast<qint64>(v.toVariant().toLongLong()));
+            ids.append(v.toVariant().toLongLong());
         }
         auto res = m_service->getOrSubmitBatchJob(ids);
         if (!res.isOk()) {
             return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }
-        const JobStatus& job = res.value();
-        QJsonObject data;
-        data["status"] = job.status;
-        if (job.status == "Completed") {
-            data["url"] = "/download/batch/file/" + job.taskId;
-        }
-        return NetworkResponse::success(data);
+        return NetworkResponse::success(res.value().toJson());
     }
 
     void AudioRecordController::handleBatchDownloadFile(const QHttpServerRequest& request, QHttpServerResponder& responder, const QString& taskId) const {
@@ -238,13 +228,14 @@ namespace radar::network {
             NetworkResponse::writeError(responder, static_cast<int>(ErrorCode::AuthorizationFailed), "Unauthorized", QHttpServerResponder::StatusCode::Unauthorized);
             return;
         }
+        // 获取文件流
         auto res = m_service->getBatchFile(taskId, const_cast<AudioRecordController*>(this));
         if (!res.isOk()) {
             NetworkResponse::writeError(responder, static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponder::StatusCode::NotFound);
             return;
         }
-
         const auto& context = res.value();
+        // 文件流关闭时释放内存
         connect(context.stream, &QIODevice::aboutToClose, context.stream, &QObject::deleteLater);
         QHttpHeaders headers = NetworkResponse::getCorsHeaders();
         QByteArray encodedFileName = QUrl::toPercentEncoding(context.fileName);

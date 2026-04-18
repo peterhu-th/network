@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
 const router = useRouter()
-const SERVER_URL = `http://${window.location.hostname}:8080/api`
+const SERVER_URL = `http://${window.location.hostname}:8080`
 
 const loginForm = reactive({
   username: '',

@@ -9,7 +9,6 @@ namespace radar::network {
     // 单条数据
     struct AudioRecordDTO {
         Q_GADGET    // 允许拷贝，适用于 DTO 和配置结构体
-        
         // 注册需要反射的属性
         // 语法：Q_PROPERTY(暴露类型 暴露属性名 READ 成员函数)
         Q_PROPERTY(QString id READ getId)
@@ -100,6 +99,21 @@ namespace radar::network {
         bool isPartial = false;
     };
 
+    struct JobStatus {
+        QString taskId;
+        QString status;      // "Pending", "Processing", "Completed", "Failed"
+        QString resultPath;
+        qint64 createdAt;
+
+        [[nodiscard]] QJsonObject toJson() const {
+            QJsonObject obj;
+            obj["status"] = status;
+            if (status == "Completed") {
+                obj["url"] = "/download/batch/file/" + taskId;
+            }
+            return obj;
+        }
+    };
 }
 
 #endif

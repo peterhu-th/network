@@ -131,11 +131,10 @@ namespace radar::network {
 
         QSqlQuery query(db);
         QString sql = "SELECT id, file_path, generation_time, duration, file_size, created_at FROM audio_records WHERE 1=1";
-        if (startTime.isValid()) sql += " AND generation_time >= :start_time";
-        if (endTime.isValid()) sql += " AND generation_time <= :end_time";
+        if (startTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') >= :start_time";
+        if (endTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') <= :end_time";
         if (!format.isEmpty()) sql += " AND file_path ILIKE :format";
-        sql += " ORDER BY generation_time DESC LIMIT :limit OFFSET :offset";
-
+        sql += " ORDER BY (generation_time - duration * INTERVAL '1 second') DESC, file_path DESC LIMIT :limit OFFSET :offset";
         query.prepare(sql);
         if (startTime.isValid()) query.bindValue(":start_time", startTime);
         if (endTime.isValid()) query.bindValue(":end_time", endTime);
@@ -164,10 +163,9 @@ namespace radar::network {
         if (!db.isOpen()) return Result<int>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);
-        // 使用 SQL 内置聚合函数，返回 1 行 1 列数据
         QString sql = "SELECT COUNT(*) FROM audio_records WHERE 1=1";
-        if (startTime.isValid()) sql += " AND generation_time >= :start_time";
-        if (endTime.isValid()) sql += " AND generation_time <= :end_time";
+        if (startTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') >= :start_time";
+        if (endTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') <= :end_time";
         if (!format.isEmpty()) sql += " AND file_path ILIKE :format";
 
         query.prepare(sql);

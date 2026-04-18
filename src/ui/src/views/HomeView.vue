@@ -53,10 +53,15 @@ const fetchFiles = async (isRefresh = false) => {
     }
     if (filterForm.dateRange && filterForm.dateRange.length === 2 && filterForm.dateRange[0] && filterForm.dateRange[1]) {
       const start = new Date(filterForm.dateRange[0])
+      start.setHours(0, 0, 0, 0)
       const end = new Date(filterForm.dateRange[1])
       end.setHours(23, 59, 59, 999)
-      requestParams.startTime = start.toISOString()
-      requestParams.endTime = end.toISOString()
+      const formatLocalISO = (date: Date) => {
+        const pad = (n: number) => String(n).padStart(2, '0')
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+      }
+      requestParams.startTime = formatLocalISO(start)
+      requestParams.endTime = formatLocalISO(end)
     }
 
     const response = await axios.get(`${SERVER_URL}/files`, {
@@ -266,7 +271,15 @@ onMounted(() => {
             <!-- 按钮 -->
             <el-button type="primary" :icon="'Refresh'" @click="() => fetchFiles(true)">搜索 / 刷新</el-button>
             <el-button type="warning" :icon="'Download'" @click="handleBatchDownloadPage" element-loading-text="📦 批量打包中，请耐心等待..." v-loading.fullscreen.lock="downloadingMode">下载本页</el-button>
-            <el-button type="info" :icon="'Download'" @click="handleBatchDownloadSelected" element-loading-text="📦 正在打包选中文件..." v-loading.fullscreen.lock="downloadingMode">下载选中项</el-button>
+            <el-button
+                :type="selectedIds.length === 0 ? 'info' : 'primary'"
+                :disabled="selectedIds.length === 0"
+                :icon="'Download'"
+                @click="handleBatchDownloadSelected"
+                element-loading-text="📦 正在打包选中文件..."
+                v-loading.fullscreen.lock="downloadingMode">
+              下载选中项 {{ selectedIds.length > 0 ? `(${selectedIds.length})` : '' }}
+            </el-button>
             <el-button type="danger" @click="handleLogout">退出登录</el-button>
           </div>
         </div>
