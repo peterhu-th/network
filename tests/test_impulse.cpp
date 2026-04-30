@@ -1,13 +1,15 @@
-#include "../include/AudioProcessingService.h"
-#include "../include/DenoiseProcessor.h"
-#include "../include/ProcessorFactory.h"
-#include "../../core/types.h"
+#include "../src/processing/include/AudioProcessingService.h"
+#include "../src/processing/include/DenoiseProcessor.h"
+#include "../src/processing/include/ProcessorFactory.h"
+#include "../src/core/Types.h"
+#include "../src/core/Config.h"
 #include <QCoreApplication>
 #include <QFile>
 #include <QDebug>
 #include <QDataStream>
 #include <QDateTime>
 #include <QIODevice>
+#include <QRandomGenerator>
 #include <cmath>
 
 using namespace radar;
@@ -177,7 +179,7 @@ void testImpulseNoiseRemoval(const QString& inputFile, double lowCutoff, double 
     qDebug() << "\n--- 处理前分析 ---";
     analyzeAudio(inputFrame.data, inputFrame.sampleSize);
 
-    DenoiseProcessor processor(lowCutoff, highCutoff, inputFrame.sampleRate);
+    DenoiseProcessor processor(Config::instance().denoiseConfig());
 
     auto result = processor.process(inputFrame);
     if (result.isOk()) {
@@ -185,8 +187,7 @@ void testImpulseNoiseRemoval(const QString& inputFile, double lowCutoff, double 
         analyzeAudio(result.value().originalFrame.data, inputFrame.sampleSize);
 
         QString outputFile = inputFile;
-        qsrand(QDateTime::currentMSecsSinceEpoch() % 100000);
-        int randomNum = qrand() % 10000;
+        int randomNum = QRandomGenerator::global()->bounded(10000);
         outputFile.replace(".wav", "_filtered_" + QString::number(randomNum) + ".wav");
         saveWavFile(outputFile, result.value().originalFrame);
         
@@ -202,7 +203,7 @@ int main(int argc, char *argv[]) {
 
     qDebug() << "===== 脉冲噪声去除测试工具 =====\n";
 
-    QString inputFile = "test_input.wav";
+    QString inputFile = "D:/university/dachuang/Audio-Radar-Client/build/src/processing/test_input.wav";
 
     qDebug() << "截止频率测试 (2000-19000 Hz，仅带通滤波):";
     testImpulseNoiseRemoval(inputFile, 2000.0, 19000.0, 5, 999.0);

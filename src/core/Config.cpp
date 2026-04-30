@@ -40,6 +40,21 @@ bool Config::load(const QString& path) {
     m_netConfig.serverSecret = netObj["serverSecret"].toString("RADAR_SECRET_KEY_2026");
     m_netConfig.globalConnectionName = netObj["globalConnectionName"].toString("Audio_GlobalPool");
 
+    QJsonObject processingObj = rootObj["processing"].toObject();
+    m_denoiseConfig.lowCutoff = processingObj["lowCutoff"].toDouble(2000.0);
+    m_denoiseConfig.highCutoff = processingObj["highCutoff"].toDouble(19000.0);
+    m_denoiseConfig.fftSize = processingObj["fftSize"].toInt(8192);
+    m_denoiseConfig.hopSize = processingObj["hopSize"].toInt(2048);
+    m_denoiseConfig.aleMu1 = processingObj["aleMu1"].toDouble(0.0005);
+    m_denoiseConfig.aleM1 = processingObj["aleM1"].toInt(16);
+    m_denoiseConfig.aleDelta1 = processingObj["aleDelta1"].toInt(3);
+    m_denoiseConfig.aleMu2 = processingObj["aleMu2"].toDouble(0.001);
+    m_denoiseConfig.aleM2 = processingObj["aleM2"].toInt(32);
+    m_denoiseConfig.aleDelta2 = processingObj["aleDelta2"].toInt(5);
+    m_denoiseConfig.aleMixRatio = processingObj["aleMixRatio"].toDouble(0.7);
+    m_denoiseConfig.aleSignalGain = processingObj["aleSignalGain"].toDouble(1.3);
+    m_denoiseConfig.sadThreshold = processingObj["sadThreshold"].toDouble(1e-3);
+
     return true;
 }
 
@@ -69,6 +84,10 @@ network::NetworkConfig Config::networkConfig() const {
 
 network::DatabaseConfig Config::databaseConfig() const {
     return m_dbConfig;
+}
+
+DenoiseConfig Config::denoiseConfig() const {
+    return m_denoiseConfig;
 }
 
 QString Config::authToken() const {

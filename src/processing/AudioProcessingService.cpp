@@ -4,7 +4,7 @@
 namespace radar {
 
     void AudioProcessingService::initDefaultPipeline() {
-        initPipelineForFullFeature();
+        initPipelineForSimpleDenoise();
     }
 
     Result<ProcessedData> AudioProcessingService::processAudio(const AudioFrame& frame) {

@@ -24,5 +24,20 @@
         "port": 8080,
         "serverSecret": "RADAR_SECRET_KEY_2026",
         "globalConnectionName": "Audio_GlobalPool"
+    },
+    "processing": {
+        "lowCutoff": 2000.0,
+        "highCutoff": 19000.0,
+        "fftSize": 8192,
+        "hopSize": 2048,
+        "aleMu1": 0.0005,
+        "aleM1": 16,
+        "aleDelta1": 3,
+        "aleMu2": 0.001,
+        "aleM2": 32,
+        "aleDelta2": 5,
+        "aleMixRatio": 0.7,
+        "aleSignalGain": 1.3,
+        "sadThreshold": 1e-3
     }
 }

@@ -2,14 +2,14 @@
 #include "DenoiseProcessor.h"
 #include "VADProcessor.h"
 #include "FeatureExtractor.h"
+#include "Config.h"
 
 namespace radar {
 
-    // 实现创建方法（补全函数体，解决语法报错）
     std::unique_ptr<Processor> ProcessorFactory::createProcessor(ProcessorType type) {
         switch (type) {
         case ProcessorType::Denoise:
-            return std::make_unique<DenoiseProcessor>();
+            return std::make_unique<DenoiseProcessor>(Config::instance().denoiseConfig());
         case ProcessorType::VAD:
             return std::make_unique<VADProcessor>();
         case ProcessorType::FeatureExtractor:
@@ -19,4 +19,4 @@ namespace radar {
         }
     }
 
-} // namespace radar
+}
