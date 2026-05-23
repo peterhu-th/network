@@ -1,7 +1,6 @@
 #include <QThreadPool>
 #include <QTcpServer>
 #include <QSqlQuery>
-#include <QSqlError>
 #include <QDebug>
 #include "AudioRecordMapper.h"
 
@@ -15,38 +14,66 @@ namespace radar::network {
     }
 
     Result<void> AudioRecordMapper::createTable() const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
+        QStringList tables = db.tables(QSql::Tables);
         QSqlQuery query(db);
-        QString sql = R"(
-            CREATE TABLE IF NOT EXISTS audio_records (
-                id BIGINT PRIMARY KEY,
-                file_path VARCHAR(512) NOT NULL UNIQUE,
-                generation_time TIMESTAMP NOT NULL,
-                duration INT,
-                file_size BIGINT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        )";
-        if (!query.exec(sql)) {
-            return Result<void>::error("Create table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
+
+        if (!tables.contains("audio_records", Qt::CaseInsensitive)) {
+            QString sql = R"(
+                CREATE TABLE audio_records (
+                    id BIGINT PRIMARY KEY,
+                    file_path VARCHAR(512) NOT NULL UNIQUE,
+                    generation_time TIMESTAMP NOT NULL,
+                    duration INT,
+                    file_size BIGINT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            )";
+            if (!query.exec(sql)) {
+                return Result<void>::error("Create table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
+            }
         }
-        QString sqlLogs = R"(
-            CREATE TABLE IF NOT EXISTS download_logs (
-                log_id SERIAL PRIMARY KEY,
-                file_id BIGINT NOT NULL,
-                downloaded_at TIMESTAMP NOT NULL
-            )
-        )";
-        if (!query.exec(sqlLogs)) {
-            return Result<void>::error("Create download_logs table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
+
+        if (!tables.contains("download_logs", Qt::CaseInsensitive)) {
+            QString sqlLogs = R"(
+                CREATE TABLE download_logs (
+                    log_id SERIAL PRIMARY KEY,
+                    file_id BIGINT NOT NULL,
+                    downloaded_at TIMESTAMP NOT NULL
+                )
+            )";
+            if (!query.exec(sqlLogs)) {
+                return Result<void>::error("Create download_logs table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
+            }
         }
         return Result<void>::ok();
     }
 
+    Result<std::vector<std::pair<qint64, QString>>> AudioRecordMapper::getAllFilePaths() const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
+        if (!db.isOpen()) {
+            return Result<std::vector<std::pair<qint64, QString>>>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
+
+        QSqlQuery query(db);
+        if (!query.exec("SELECT id, file_path FROM audio_records")) {
+            return Result<std::vector<std::pair<qint64, QString>>>::error("Query all file paths failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        }
+
+        std::vector<std::pair<qint64, QString>> results;
+        while (query.next()) {
+            qint64 id = query.value("id").toLongLong();
+            QString path = query.value("file_path").toString();
+            results.emplace_back(id, path);
+        }
+
+        return Result<std::vector<std::pair<qint64, QString>>>::ok(results);
+    }
+
     Result<void> AudioRecordMapper::insertRecord(const AudioRecord &record) const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);
@@ -66,8 +93,25 @@ namespace radar::network {
         return Result<void>::ok();
     }
 
+    Result<void> AudioRecordMapper::deleteRecord(qint64 id) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
+        if (!db.isOpen()) {
+            return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
+        }
+
+        QSqlQuery query(db);
+        query.prepare("DELETE FROM audio_records WHERE id = :id");
+        query.bindValue(":id", QVariant::fromValue(id));
+
+        if (!query.exec()) {
+            return Result<void>::error("Delete record failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        }
+
+        return Result<void>::ok();
+    }
+
     Result<QString> AudioRecordMapper::getFilePathById(qint64 id) const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<QString>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);
@@ -80,19 +124,20 @@ namespace radar::network {
         return Result<QString>::error("Failed to get file path or record not found", ErrorCode::RecordNotFound);
     }
 
-    Result<std::vector<AudioRecord>> AudioRecordMapper::queryRecords(const QDateTime &startTime, const QDateTime &endTime, int limit, int offset) const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    Result<std::vector<AudioRecord>> AudioRecordMapper::queryRecords(const QDateTime &startTime, const QDateTime &endTime, const QString& format, int limit, int offset) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<std::vector<AudioRecord>>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);
         QString sql = "SELECT id, file_path, generation_time, duration, file_size, created_at FROM audio_records WHERE 1=1";
-        if (startTime.isValid()) sql += " AND generation_time >= :start_time";
-        if (endTime.isValid()) sql += " AND generation_time <= :end_time";
-        sql += " ORDER BY generation_time DESC LIMIT :limit OFFSET :offset";
-
+        if (startTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') >= :start_time";
+        if (endTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') <= :end_time";
+        if (!format.isEmpty()) sql += " AND file_path ILIKE :format";
+        sql += " ORDER BY (generation_time - duration * INTERVAL '1 second') DESC, file_path DESC LIMIT :limit OFFSET :offset";
         query.prepare(sql);
         if (startTime.isValid()) query.bindValue(":start_time", startTime);
         if (endTime.isValid()) query.bindValue(":end_time", endTime);
+        if (!format.isEmpty()) query.bindValue(":format", "%." + format);
         query.bindValue(":limit", limit);
         query.bindValue(":offset", offset);
 
@@ -112,19 +157,20 @@ namespace radar::network {
         return Result<std::vector<AudioRecord>>::ok(records);
     }
 
-    Result<int> AudioRecordMapper::countRecords(const QDateTime &startTime, const QDateTime &endTime) const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+    Result<int> AudioRecordMapper::countRecords(const QDateTime &startTime, const QDateTime &endTime, const QString& format) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<int>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);
-        // 使用 SQL 内置聚合函数，返回 1 行 1 列数据
         QString sql = "SELECT COUNT(*) FROM audio_records WHERE 1=1";
-        if (startTime.isValid()) sql += " AND generation_time >= :start_time";
-        if (endTime.isValid()) sql += " AND generation_time <= :end_time";
+        if (startTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') >= :start_time";
+        if (endTime.isValid()) sql += " AND (generation_time - duration * INTERVAL '1 second') <= :end_time";
+        if (!format.isEmpty()) sql += " AND file_path ILIKE :format";
 
         query.prepare(sql);
         if (startTime.isValid()) query.bindValue(":start_time", startTime);
         if (endTime.isValid()) query.bindValue(":end_time", endTime);
+        if (!format.isEmpty()) query.bindValue(":format", "%." + format);
 
         if (!query.exec()) return Result<int>::error("Count query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
         if (query.next()) return Result<int>::ok(query.value(0).toInt());
@@ -132,7 +178,7 @@ namespace radar::network {
     }
 
     Result<bool> AudioRecordMapper::hasRecord(const QString &filePath) const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<bool>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);
@@ -146,7 +192,7 @@ namespace radar::network {
     }
 
     Result<void> AudioRecordMapper::insertDownloadLog(qint64 fileId, const QDateTime& time) const {
-        QSqlDatabase db = QSqlDatabase::database(m_connectionName);
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         if (!db.isOpen()) return Result<void>::error("Database not open", ErrorCode::DatabaseConnectionFailed);
 
         QSqlQuery query(db);

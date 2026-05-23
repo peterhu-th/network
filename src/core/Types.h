@@ -60,7 +60,8 @@ enum class ErrorCode {
     AuthorizationFailed = 4012,
     FileNotExist = 4013,
     InvalidParam = 4014,
-    ToolsError = 4015
+    ToolsError = 4015,
+    TaskProcessingFailed = 4016
 };
 
 template<typename T>

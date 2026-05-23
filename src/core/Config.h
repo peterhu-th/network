@@ -38,6 +38,9 @@ public:
     network::NetworkConfig networkConfig() const;
     network::DatabaseConfig databaseConfig() const;
     DenoiseConfig denoiseConfig() const;
+    network::SmtpConfig smtpConfig() const;
+    QString adminEmail() const;
+    QString adminPassword() const;
 	QString authToken() const;
 
 private:
@@ -45,6 +48,9 @@ private:
     QVariantMap m_config;
     network::DatabaseConfig m_dbConfig;
     network::NetworkConfig m_netConfig;
+    network::SmtpConfig m_smtpConfig;
+    QString m_adminEmail;
+    QString m_adminPassword;
     DenoiseConfig m_denoiseConfig;
 };
 

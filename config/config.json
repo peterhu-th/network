@@ -16,14 +16,23 @@
         "dbName": "audio",
         "username": "postgres",
         "passWord": "6",
-        "storagePath": "D:/gitstore/Audio-Radar-Client/data",
-        "ffprobePath": "D:/gitstore/Audio-Radar-Client/tools/ffprobe.exe"
+        "storagePath": "D:/gitstore/Audio-Radar-Client/data"
     },
     "network": {
         "bindAddress": "0.0.0.0",
         "port": 8080,
-        "serverSecret": "RADAR_SECRET_KEY_2026",
+        "serverSecret": "RADAR_DEV_SECRET_CHANGE_ME",
         "globalConnectionName": "Audio_GlobalPool"
+    },
+    "smtp": {
+        "server": "smtp.qq.com",
+        "port": 465,
+        "username": "",
+        "password": ""
+    },
+    "admin": {
+        "email": "admin@example.local",
+        "password": "admin-dev-password"
     },
     "processing": {
         "lowCutoff": 2000.0,

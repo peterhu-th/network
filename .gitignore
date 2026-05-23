@@ -1,5 +1,15 @@
-# Build directories
+# Build
 build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
 src/processing/build_test/
 
 # Qt
@@ -12,4 +22,18 @@ rnnoise/
 # IDE
 .vs/
 .idea/
+.vscode/
+*.user
 *.swp
+
+# Local docs (architecture internal)
+架构设计.md
+方案.md
+
+# Config with secrets
+config/config.local.json
+data/*
+tools/*.exe
+
+# Logs
+*.log

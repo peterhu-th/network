@@ -2,13 +2,16 @@
 #define NETWORK_DTO_H
 
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QMetaProperty>
+#include <QDateTime>
+#include <QIODevice>
+#include <vector>
 
 namespace radar::network {
-    // 前后端之间的 DTO
+    // 单条数据
     struct AudioRecordDTO {
         Q_GADGET    // 允许拷贝，适用于 DTO 和配置结构体
-        
         // 注册需要反射的属性
         // 语法：Q_PROPERTY(暴露类型 暴露属性名 READ 成员函数)
         Q_PROPERTY(QString id READ getId)
@@ -43,6 +46,24 @@ namespace radar::network {
         }
     };
 
+    // 包装列表的 DTO
+    template <typename T>
+    struct PageDTO {
+        int total = 0;
+        std::vector<T> list;
+
+        [[nodiscard]] QJsonObject toJson() const {
+            QJsonObject obj;
+            obj["total"] = total;
+            QJsonArray arr;
+            for (const auto& item : list) {
+                arr.append(item.toJson());
+            }
+            obj["list"] = arr;
+            return obj;
+        }
+    };
+
     struct AudioRecord {
         int64_t id = 0;             // 雪花算法
         QString filePath;           // 绝对路径
@@ -52,6 +73,44 @@ namespace radar::network {
         QDateTime createdAt;        // 记录时间
     };
 
+    struct UserEntity {
+        QString id;
+        QString email;
+        QString passwordHash;
+        int role = 0; // 0: Guest, 1: Admin
+        int status = 1; // 1: 正常, 0: 禁用
+        QDateTime createdAt;
+        QDateTime updatedAt;
+    };
+
+    struct UserDTO {
+        Q_GADGET
+        Q_PROPERTY(QString id MEMBER id)
+        Q_PROPERTY(QString email MEMBER email)
+        Q_PROPERTY(int role MEMBER role)
+        Q_PROPERTY(int status MEMBER status)
+        Q_PROPERTY(QString createdAt READ getCreatedAt)
+
+    public:
+        QString id;
+        QString email;
+        int role = 0;
+        int status = 1;
+        QDateTime createdAt;
+
+        [[nodiscard]] QString getCreatedAt() const { return createdAt.toString(Qt::ISODate); }
+
+        [[nodiscard]] QJsonObject toJson() const {
+            QJsonObject obj;
+            const QMetaObject* metaObj = &staticMetaObject;
+            for (int i = 0; i < metaObj->propertyCount(); ++i) {
+                QMetaProperty prop = metaObj->property(i);
+                obj.insert(QString::fromLatin1(prop.name()), QJsonValue::fromVariant(prop.readOnGadget(this)));
+            }
+            return obj;
+        }
+    };
+
     struct DatabaseConfig {
         QString type;         // 驱动
         QString host;         // 指向本机
@@ -59,7 +118,6 @@ namespace radar::network {
         QString dbName;
         QString username;
         QString storagePath;
-        QString ffprobePath;  // 工具路径
         QString passWord;
     };
 
@@ -68,6 +126,13 @@ namespace radar::network {
         int port = 0;
         QString serverSecret;
         QString globalConnectionName;
+    };
+
+    struct SmtpConfig {
+        QString server;
+        int port = 465;
+        QString username;
+        QString password;
     };
 
     // Controller 与 Service 之间的 DTO
@@ -81,6 +146,21 @@ namespace radar::network {
         bool isPartial = false;
     };
 
+    struct JobStatus {
+        QString taskId;
+        QString status;      // "Pending", "Processing", "Completed", "Failed"
+        QString resultPath;
+        qint64 createdAt;
+
+        [[nodiscard]] QJsonObject toJson() const {
+            QJsonObject obj;
+            obj["status"] = status;
+            if (status == "Completed") {
+                obj["url"] = "/download/batch/file/" + taskId;
+            }
+            return obj;
+        }
+    };
 }
 
 #endif

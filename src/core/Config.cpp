@@ -1,6 +1,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QtGlobal>
 #include "Config.h"
 
 namespace radar {
@@ -30,15 +31,32 @@ bool Config::load(const QString& path) {
     m_dbConfig.port = dbObj["port"].toInt(5432);
     m_dbConfig.dbName = dbObj["dbName"].toString("audio");
     m_dbConfig.username = dbObj["username"].toString("postgres");
-    m_dbConfig.passWord = dbObj["passWord"].toString();
-    m_dbConfig.storagePath = dbObj["storagePath"].toString("./data");
-    m_dbConfig.ffprobePath = dbObj["ffprobePath"].toString("./tools/ffprobe.exe");
+    const QString envDbPassword = qEnvironmentVariable("AUDIO_DB_PASSWORD");
+    m_dbConfig.passWord = envDbPassword.isEmpty() ? dbObj["passWord"].toString() : envDbPassword;
+    const QString envStoragePath = qEnvironmentVariable("AUDIO_STORAGE_PATH");
+    m_dbConfig.storagePath = envStoragePath.isEmpty() ? dbObj["storagePath"].toString("./data") : envStoragePath;
 
     QJsonObject netObj = rootObj["network"].toObject();
     m_netConfig.bindAddress = netObj["bindAddress"].toString("127.0.0.1");
     m_netConfig.port = netObj["port"].toInt(8080);
-    m_netConfig.serverSecret = netObj["serverSecret"].toString("RADAR_SECRET_KEY_2026");
+    const QString envServerSecret = qEnvironmentVariable("AUDIO_SERVER_SECRET");
+    m_netConfig.serverSecret = envServerSecret.isEmpty()
+        ? netObj["serverSecret"].toString("RADAR_DEV_SECRET_CHANGE_ME")
+        : envServerSecret;
     m_netConfig.globalConnectionName = netObj["globalConnectionName"].toString("Audio_GlobalPool");
+
+    QJsonObject smtpObj = rootObj["smtp"].toObject();
+    m_smtpConfig.server = smtpObj["server"].toString("smtp.qq.com");
+    m_smtpConfig.port = smtpObj["port"].toInt(465);
+    m_smtpConfig.username = smtpObj["username"].toString();
+    const QString envSmtpPassword = qEnvironmentVariable("AUDIO_SMTP_PASSWORD");
+    m_smtpConfig.password = envSmtpPassword.isEmpty() ? smtpObj["password"].toString() : envSmtpPassword;
+
+    QJsonObject adminObj = rootObj["admin"].toObject();
+    const QString envAdminEmail = qEnvironmentVariable("AUDIO_ADMIN_EMAIL");
+    const QString envAdminPassword = qEnvironmentVariable("AUDIO_ADMIN_PASSWORD");
+    m_adminEmail = envAdminEmail.isEmpty() ? adminObj["email"].toString() : envAdminEmail;
+    m_adminPassword = envAdminPassword.isEmpty() ? adminObj["password"].toString() : envAdminPassword;
 
     QJsonObject processingObj = rootObj["processing"].toObject();
     m_denoiseConfig.lowCutoff = processingObj["lowCutoff"].toDouble(2000.0);
@@ -88,6 +106,18 @@ network::DatabaseConfig Config::databaseConfig() const {
 
 DenoiseConfig Config::denoiseConfig() const {
     return m_denoiseConfig;
+}
+
+network::SmtpConfig Config::smtpConfig() const {
+    return m_smtpConfig;
+}
+
+QString Config::adminEmail() const {
+    return m_adminEmail;
+}
+
+QString Config::adminPassword() const {
+    return m_adminPassword;
 }
 
 QString Config::authToken() const {

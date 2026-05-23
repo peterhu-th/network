@@ -4,12 +4,32 @@
 #include <QHttpServerResponse>
 #include <QHttpHeaders>
 #include <QJsonObject>
-#include <QJsonArray>
 #include <QTcpServer>
+#include <type_traits>
 
 namespace radar::network {
-    class ApiResponse {
+    class NetworkResponse {
     public:
+        template <typename T>
+        static QHttpServerResponse fromResult(const Result<T>& result, QHttpServerResponse::StatusCode errHttpCode = QHttpServerResponse::StatusCode::BadRequest) {
+            if (!result.isOk()) {
+                return error(static_cast<int>(result.errorCode()), result.errorMessage(), errHttpCode);
+            }
+            // 类型探测
+            if constexpr (std::is_convertible_v<T, QJsonValue>) {
+                return success(result.value());
+            } else {
+                return success(result.value().toJson());
+            }
+        }
+
+        static QHttpServerResponse fromResult(const Result<void>& result, QHttpServerResponse::StatusCode errHttpCode = QHttpServerResponse::StatusCode::BadRequest) {
+            if (result.isOk()) {
+                return success();
+            }
+            return error(static_cast<int>(result.errorCode()), result.errorMessage(), errHttpCode);
+        }
+
         // 成功响应 (包含数据)
         static QHttpServerResponse success(const QJsonValue& data) {
             QJsonObject res{
@@ -21,12 +41,10 @@ namespace radar::network {
             appendCorsHeaders(response);
             return response;
         }
-
         // 成功响应 (无数据)
         static QHttpServerResponse success() {
             return success(QJsonValue::Null);
         }
-
         // 错误响应 (返回内部 ErrorCode 和 HTTP 状态码)
         static QHttpServerResponse error(int errorCode, const QString& message, QHttpServerResponse::StatusCode httpCode) {
             QJsonObject res{
@@ -45,22 +63,36 @@ namespace radar::network {
                         {"message", message},
                         {"data", QJsonValue::Null}
             };
-            QHttpHeaders headers;
-            headers.append("Access-Control-Allow-Origin", "*");
-            headers.append("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+            QHttpHeaders headers = getCorsHeaders();
             headers.append("Content-Type", "application/json");
             responder.write(QJsonDocument(res).toJson(), headers, httpCode);
         }
 
-    private:
-        // 添加跨域头
-        static void appendCorsHeaders(QHttpServerResponse& response) {
+        // 统一获取跨域相关的 Header
+        static QHttpHeaders getCorsHeaders() {
             QHttpHeaders headers;
+            // 允许所有源（实际生产中应限制为特定域名）
             headers.append("Access-Control-Allow-Origin", "*");
+            // 允许的跨域请求方法
             headers.append("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization");
-            response.setHeaders(headers);
+            // 允许客户端携带的自定义 Header，增加 Range 支持断点续传
+            headers.append("Access-Control-Allow-Headers", "Content-Type, Authorization, Range");
+            return headers;
+        }
+
+    private:
+        // 添加跨域头到 HTTP 响应对象
+        static void appendCorsHeaders(QHttpServerResponse& response) {
+            response.setHeaders(getCorsHeaders());
+        }
+
+        static QJsonValue extractData(const QJsonValue& val) {
+            return val;
+        }
+
+        template <typename DTO>
+        static auto extractData(const DTO& dto) -> decltype(dto.toJson()) {
+            return dto.toJson();
         }
     };
 }

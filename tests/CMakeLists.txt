@@ -27,3 +27,4 @@ target_link_libraries(test_processing_main PRIVATE
     core
     Qt6::Core
 )
+add_test(NAME test_processing_main COMMAND test_processing_main)

@@ -1,12 +1,11 @@
-const BASE_URL = `http://${window.location.hostname}:8080/api`;
-const AUTH_TOKEN = 'user';
-
+const BASE_URL = '/api';
 export async function fetchAudioFiles(limit = 50, offset = 0) {
     try {
+        const token = localStorage.getItem('token') || '';
         const response = await fetch(`${BASE_URL}/files?limit=${limit}&offset=${offset}`, {
             method: 'GET',
             headers: {
-                    'Authorization': `Bearer ${AUTH_TOKEN}`
+                    'Authorization': `Bearer ${token}`
                 }
         });
         if (response.status === 401) {
@@ -23,5 +22,6 @@ export async function fetchAudioFiles(limit = 50, offset = 0) {
 }
 
 export function getDownloadUrl(id) {
+    const AUTH_TOKEN = localStorage.getItem('token') || '';
     return `${BASE_URL}/download?id=${id}&token=${AUTH_TOKEN}`;
 }

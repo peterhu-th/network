@@ -1,11 +1,13 @@
 #include <QDebug>
-#include <QSqlDatabase>
-#include <QSqlError>
-#include <QFileInfo>
 #include <QMimeDatabase>
+#include <QDir>
+#include <QPointer>
+#include <QtConcurrent/QtConcurrentRun>
+#include <QFuture>
 #include "AudioRecordService.h"
-#include "./mapper/AudioRecordMapper.h"
+#include "../mapper/AudioRecordMapper.h"
 #include "../utils/ThrottledFile.h"
+#include "../utils/ZipUtils.h"
 
 namespace radar::network {
     AudioRecordService::AudioRecordService(QObject *parent): QObject(parent) {}
@@ -19,11 +21,12 @@ namespace radar::network {
         db.setDatabaseName(dbConfig.dbName);
         db.setUserName(dbConfig.username);
         db.setPassword(dbConfig.passWord);
+        db.setConnectOptions("connect_timeout=1");
         if (!db.open()) {
             return Result<void>::error("Service database init failed: " + db.lastError().text(), ErrorCode::DatabaseInitFailed);
         }
         m_mapper = std::make_shared<AudioRecordMapper>(m_netConfig.globalConnectionName);
-        m_fileIndexer = std::make_unique<FileIndexer>(m_mapper.get(), m_dbConfig.ffprobePath, this);
+        m_fileIndexer = std::make_unique<FileIndexer>(m_mapper.get(), this);
         return Result<void>::ok();
     }
 
@@ -36,42 +39,22 @@ namespace radar::network {
         }
     }
 
-    void AudioRecordService::stop() {}
-
-    Result<qint64> AudioRecordService::verifyToken(const QString& rawToken) const{
-        QString token = rawToken;
-        if (token.startsWith("Bearer ", Qt::CaseInsensitive)) {
-            token = token.mid(7).trimmed();
+    Result<void> AudioRecordService::forceScan() const {
+        if (m_fileIndexer) {
+            auto res = m_fileIndexer->scan();
+            if (!res.isOk()) {
+                return Result<void>::error(res.errorMessage(), res.errorCode());
+            }
         }
-        QStringList parts = token.split("_");
-        if (parts.size() != 3) {
-            return Result<qint64>::error("Invalid Token Format", ErrorCode::AuthorizationFailed);
-        }
-        qint64 uid = parts[0].toLongLong();
-        qint64 timestamp = parts[1].toLongLong();
-        const QString& sign = parts[2];
-        // 时效校验
-        qint64 currentTs = QDateTime::currentSecsSinceEpoch();
-        if (currentTs - timestamp > 7200 || currentTs - timestamp < 0) {
-            return Result<qint64>::error("Token Expired", ErrorCode::AuthorizationFailed);
-        }
-        // 验签: Hash(UID + "_" + TIME + "_" + SECRET)
-        QString dataToHash = parts[0] + "_" + parts[1] + "_" + m_netConfig.serverSecret;
-        QString expectedSign = QString(QCryptographicHash::hash(dataToHash.toUtf8(), QCryptographicHash::Sha256).toHex());
-
-        if (sign != expectedSign) {
-            return Result<qint64>::error("Signature Mismatch", ErrorCode::AuthorizationFailed);
-        }
-        // 返回 UID
-        return Result<qint64>::ok(uid);
+        return Result<void>::ok();
     }
 
-    Result<int> AudioRecordService::getTotalCount(const QDateTime &startTime, const QDateTime &endTime) const {
-        return m_mapper->countRecords(startTime, endTime);
+    Result<int> AudioRecordService::getTotalCount(const QDateTime &startTime, const QDateTime &endTime, const QString& format) const {
+        return m_mapper->countRecords(startTime, endTime, format);
     }
 
-    Result<std::vector<AudioRecordDTO>> AudioRecordService::getRecordPage(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) const {
-        auto dbResult = m_mapper->queryRecords(startTime, endTime, limit, offset);
+    Result<std::vector<AudioRecordDTO>> AudioRecordService::getRecordPage(const QDateTime& startTime, const QDateTime& endTime, const QString& format, int limit, int offset) const {
+        auto dbResult = m_mapper->queryRecords(startTime, endTime, format, limit, offset);
         if (!dbResult.isOk()) {
             return Result<std::vector<AudioRecordDTO>>::error(dbResult.errorMessage(), dbResult.errorCode());
         }
@@ -86,6 +69,19 @@ namespace radar::network {
             dtoList.push_back(dto);
         }
         return Result<std::vector<AudioRecordDTO>>::ok(dtoList);
+    }
+
+    Result<void> AudioRecordService::deleteRecord(qint64 id) const {
+        auto pathRes = m_mapper->getFilePathById(id);
+        if (!pathRes.isOk()) {
+            return Result<void>::error("Record not found", ErrorCode::RecordNotFound);
+        }
+        const QString& filePath = pathRes.value();
+        QFile file(filePath);
+        if (file.exists() && !file.remove()) {
+            qWarning() << "Failed to delete physical file:" << filePath;
+        }
+        return m_mapper->deleteRecord(id);
     }
 
     Result<FileDownloadContext> AudioRecordService::prepareDownload(qint64 id, qint64 speedLimit, const QString& rangeHeader, QObject* streamParent) const {
@@ -132,5 +128,109 @@ namespace radar::network {
         }
         qInfo() << "Download successfully initiated for file ID:" << id;
         return Result<void>::ok();
+    }
+
+    void AudioRecordService::garbageCollectJobs() {
+        QWriteLocker locker(&m_jobsLock);
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        auto it = m_jobs.begin();
+        while (it != m_jobs.end()) {
+            if (now - it.value().createdAt > 3600000) {
+                if (!it.value().resultPath.isEmpty()) {
+                    QFile::remove(it.value().resultPath);
+                }
+                it = m_jobs.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    Result<JobStatus> AudioRecordService::getOrSubmitBatchJob(const QList<qint64>& ids) {
+        garbageCollectJobs();
+        if (ids.isEmpty()) return Result<JobStatus>::error("Empty tasks", ErrorCode::InvalidParam);
+        // 利用 ids 排序构建唯一的固定 Hash
+        QList<qint64> sortedIds = ids;
+        std::sort(sortedIds.begin(), sortedIds.end());
+        QCryptographicHash hasher(QCryptographicHash::Sha256);
+        for (qint64 id : sortedIds) {
+            hasher.addData(QByteArrayView(reinterpret_cast<const char*>(&id), sizeof(id)));
+        }
+        QString taskId = QString(hasher.result().toHex());
+        // 限制作用域，减小锁粒度
+        {
+            QReadLocker locker(&m_jobsLock);
+            if (m_jobs.contains(taskId)) {
+                return Result<JobStatus>::ok(m_jobs[taskId]);
+            }
+        }
+        JobStatus newJob;
+        newJob.taskId = taskId;
+        newJob.status = "Processing";
+        newJob.createdAt = QDateTime::currentMSecsSinceEpoch();
+        newJob.resultPath = QDir::tempPath() + "/batch_records_" + taskId + ".zip";
+
+        {
+            QWriteLocker locker(&m_jobsLock);
+            m_jobs[taskId] = newJob;
+        }
+
+        QList<QString> filePaths;
+        for (qint64 id : sortedIds) {
+            auto pathRes = m_mapper->getFilePathById(id);
+            if (pathRes.isOk()) {
+                filePaths.append(pathRes.value());
+            }
+        }
+        if (filePaths.isEmpty()) {
+            QWriteLocker locker(&m_jobsLock);
+            m_jobs[taskId].status = "Failed";
+            return Result<JobStatus>::error("Empty valid files", ErrorCode::RecordNotFound);
+        }
+        QPointer<AudioRecordService> safeThis(this);
+        // 开启后台线程打包下载，异步非阻塞
+        (void) QtConcurrent::run([safeThis, taskId, filePaths, resultPath = newJob.resultPath]() {
+            auto res = ZipUtils::createZip(filePaths, resultPath);
+            if (safeThis) {
+                QWriteLocker locker(&safeThis->m_jobsLock);
+                if (safeThis && safeThis->m_jobs.contains(taskId)) {
+                    safeThis->m_jobs[taskId].status = res.isOk() ? "Completed" : "Failed";
+                }
+            } else {
+                QFile::remove(resultPath);
+            }
+        });
+        return Result<JobStatus>::ok(newJob);
+    }
+
+    Result<FileDownloadContext> AudioRecordService::getBatchFile(const QString& taskId, QObject* streamParent) const {
+        QString resultPath;
+
+        {
+            QReadLocker locker(&m_jobsLock);
+            if (!m_jobs.contains(taskId)) {
+                return Result<FileDownloadContext>::error("Task not found", ErrorCode::RecordNotFound);
+            }
+            if (m_jobs[taskId].status != "Completed") {
+                return Result<FileDownloadContext>::error("Task is still processing", ErrorCode::TaskProcessingFailed);
+            }
+            resultPath = m_jobs[taskId].resultPath;
+        }
+
+        QFileInfo fileInfo(resultPath);
+        if (!fileInfo.exists()) {
+            return Result<FileDownloadContext>::error("Zip file missing on disk", ErrorCode::FileNotExist);
+        }
+        FileDownloadContext context;
+        context.fileName = "batch_records_" + taskId.left(6) + ".zip";
+        context.contentType = "application/zip";
+        context.fileSize = fileInfo.size();
+        context.endPos = context.fileSize - 1;
+        auto file = std::make_unique<ThrottledFile>(resultPath, 0, streamParent);
+        if (!file->open(QIODevice::ReadOnly)) {
+            return Result<FileDownloadContext>::error("File unreadable", ErrorCode::NetworkFileIOFailed);
+        }
+        context.stream = file.release();
+        return Result<FileDownloadContext>::ok(context);
     }
 }

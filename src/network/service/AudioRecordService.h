@@ -5,9 +5,10 @@
 #include <memory>
 #include <vector>
 #include <QCryptographicHash>
+#include <QReadWriteLock>
 #include "../utils/FileIndexer.h"
 #include "../NetworkDTO.h"
-#include "./mapper/AudioRecordMapper.h"
+#include "../mapper/AudioRecordMapper.h"
 
 namespace radar::network {
     class AudioRecordService : public QObject {
@@ -18,19 +19,23 @@ namespace radar::network {
         ~AudioRecordService() override = default;
         [[nodiscard]] Result<void> init(const DatabaseConfig& dbConfig, const NetworkConfig& netConfig);
         void start() const;
-
-        static void stop();
-        [[nodiscard]] Result<qint64> verifyToken(const QString& rawToken) const;
-        [[nodiscard]] Result<int> getTotalCount(const QDateTime& startTime, const QDateTime& endTime) const;
-        [[nodiscard]] Result<std::vector<AudioRecordDTO>> getRecordPage(const QDateTime& startTime, const QDateTime& endTime, int limit, int offset) const;
+        [[nodiscard]] Result<void> forceScan() const;
+        [[nodiscard]] Result<int> getTotalCount(const QDateTime& startTime, const QDateTime& endTime, const QString& format = "") const;
+        [[nodiscard]] Result<std::vector<AudioRecordDTO>> getRecordPage(const QDateTime& startTime, const QDateTime& endTime, const QString& format = "", int limit = 100, int offset = 0) const;
+        [[nodiscard]] Result<void> deleteRecord(qint64 id) const;
         [[nodiscard]] Result<FileDownloadContext> prepareDownload(qint64 id, qint64 speedLimit, const QString& rangeHeader, QObject* streamParent) const;
         [[nodiscard]] Result<void> logDownloadRequest(qint64 id) const;
+        [[nodiscard]] Result<JobStatus> getOrSubmitBatchJob(const QList<qint64>& ids);
+        [[nodiscard]] Result<FileDownloadContext> getBatchFile(const QString& taskId, QObject* streamParent) const;
 
     private:
-        std::shared_ptr<AudioRecordMapper> m_mapper;    // 数据访问对象
+        std::shared_ptr<AudioRecordMapper> m_mapper;
         std::unique_ptr<FileIndexer> m_fileIndexer;
         DatabaseConfig m_dbConfig;
         NetworkConfig m_netConfig;
+        mutable QReadWriteLock m_jobsLock;
+        QHash<QString, JobStatus> m_jobs;
+        void garbageCollectJobs();
     };
 }
 

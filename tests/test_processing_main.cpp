@@ -1,5 +1,5 @@
-#include "../include/AudioProcessingService.h"
-#include "Types.h"
+#include "../src/processing/include/AudioProcessingService.h"
+#include "../src/core/Types.h"
 #include <QCoreApplication>
 #include <QDebug>
 
@@ -29,5 +29,5 @@ void testProcessingPipeline() {
 int main(int argc, char *argv[]) {
     QCoreApplication a(argc, argv);
     testProcessingPipeline();
-    return a.exec();
+    return 0;
 }
