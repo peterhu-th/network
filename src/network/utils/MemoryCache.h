@@ -5,6 +5,9 @@
 #include <mutex>
 #include <string>
 #include <chrono>
+#include <thread>
+#include <condition_variable>
+#include <atomic>
 
 namespace radar::network {
     namespace utils {
@@ -48,8 +51,32 @@ namespace radar::network {
             }
 
         private:
-            MemoryCache() = default;
-            ~MemoryCache() = default;
+            MemoryCache() : running_(true) {
+                cleanup_thread_ = std::thread([this]() {
+                    while (running_) {
+                        std::unique_lock<std::mutex> lock(mutex_);
+                        cv_.wait_for(lock, std::chrono::minutes(10), [this] { return !running_.load(); });
+                        if (!running_) break;
+
+                        auto now = std::chrono::steady_clock::now();
+                        for (auto it = cache_.begin(); it != cache_.end();) {
+                            if (now > it->second.expire_time) {
+                                it = cache_.erase(it);
+                            } else {
+                                ++it;
+                            }
+                        }
+                    }
+                });
+            }
+
+            ~MemoryCache() {
+                running_ = false;
+                cv_.notify_all();
+                if (cleanup_thread_.joinable()) {
+                    cleanup_thread_.join();
+                }
+            }
             MemoryCache(const MemoryCache&) = delete;
             MemoryCache& operator=(const MemoryCache&) = delete;
 
@@ -60,6 +87,9 @@ namespace radar::network {
 
             std::unordered_map<std::string, CacheItem> cache_;
             std::mutex mutex_;
+            std::condition_variable cv_;
+            std::atomic<bool> running_{false};
+            std::thread cleanup_thread_;
         };
     }
 }

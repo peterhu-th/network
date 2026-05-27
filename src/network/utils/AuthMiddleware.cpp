@@ -29,6 +29,11 @@ namespace radar::network {
         }
 
         TokenPayload payload = tokenRes.value();
+        QString currentSig = user.passwordHash.length() > 8 ? user.passwordHash.left(8) : user.passwordHash;
+        if (!payload.pwdSig.isEmpty() && payload.pwdSig != currentSig) {
+            return Result<TokenPayload>::error("Token invalid because user password has changed", ErrorCode::AuthorizationFailed);
+        }
+
         payload.role = user.role;
         return Result<TokenPayload>::ok(payload);
     }

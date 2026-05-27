@@ -49,7 +49,11 @@ namespace radar::network::utils {
             if (!tls.hasLocalData()) {
                 tls.setLocalData(std::make_shared<ThreadLocalDatabase>(baseConnectionName));
             }
-            return QSqlDatabase::database(tls.localData()->connName);
+            QSqlDatabase db = QSqlDatabase::database(tls.localData()->connName);
+            if (!db.isOpen()) {
+                db.open();
+            }
+            return db;
         }
     };
 

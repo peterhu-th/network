@@ -24,15 +24,26 @@ const registerForm = reactive({
   password: ''
 })
 
+const resetForm = reactive({
+  email: '',
+  code: '',
+  password: ''
+})
+
 // 处理发送验证码
 const handleSendCode = async () => {
-  if (!registerForm.email) {
-    ElMessage.warning('请输入注册邮箱')
+  let emailToSend = registerForm.email
+  if (activeTab.value === 'reset') {
+    emailToSend = resetForm.email
+  }
+
+  if (!emailToSend) {
+    ElMessage.warning('请输入邮箱')
     return
   }
   codeLoading.value = true
   try {
-    const response = await axios.post(`${SERVER_URL}/auth/send-code`, { email: registerForm.email })
+    const response = await axios.post(`${SERVER_URL}/auth/send-code`, { email: emailToSend })
     if (response.data.code === 20000) {
       ElMessage.success('验证码已发送至您的邮箱，5分钟内有效')
       countdown.value = 60
@@ -109,6 +120,30 @@ const handleLogin = async () => {
     loading.value = false
   }
 }
+
+// 处理重置密码请求
+const handleResetPassword = async () => {
+  if (!resetForm.email || !resetForm.code || !resetForm.password) {
+    ElMessage.warning('请完整填写重置信息')
+    return
+  }
+  loading.value = true
+  try {
+    const response = await axios.post(`${SERVER_URL}/auth/reset-password`, resetForm)
+    if (response.data.code === 20000) {
+      ElMessage.success('密码重置成功，请重新登录')
+      activeTab.value = 'login'
+      loginForm.email = resetForm.email
+    } else {
+      ElMessage.error(response.data.message || '重置失败')
+    }
+  } catch (error: any) {
+    console.error(error)
+    ElMessage.error(error.response?.data?.message || '网络请求失败')
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <template>
@@ -147,10 +182,32 @@ const handleLogin = async () => {
               </div>
             </el-form-item>
             <el-form-item label="密码">
-              <el-input v-model="registerForm.password" type="password" placeholder="请设置您的密码" show-password />
+              <el-input v-model="registerForm.password" type="password" placeholder="8-16位，含字母和数字" show-password />
             </el-form-item>
             <el-form-item>
               <el-button type="success" :loading="loading" @click="handleRegister" style="width: 100%">注册</el-button>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+
+        <el-tab-pane label="找回密码" name="reset">
+          <el-form :model="resetForm" label-width="60px" @keyup.enter="handleResetPassword" class="mt-4">
+            <el-form-item label="邮箱">
+              <el-input v-model="resetForm.email" placeholder="请输入注册邮箱" />
+            </el-form-item>
+            <el-form-item label="验证码">
+              <div style="display: flex; gap: 10px; width: 100%">
+                <el-input v-model="resetForm.code" placeholder="6位验证码" style="flex: 1" />
+                <el-button type="primary" :loading="codeLoading" :disabled="countdown > 0 || !resetForm.email" @click="handleSendCode">
+                  {{ countdown > 0 ? `${countdown}秒后重试` : '获取验证码' }}
+                </el-button>
+              </div>
+            </el-form-item>
+            <el-form-item label="新密码">
+              <el-input v-model="resetForm.password" type="password" placeholder="8-16位，含字母和数字" show-password />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="warning" :loading="loading" @click="handleResetPassword" style="width: 100%">重置密码</el-button>
             </el-form-item>
           </el-form>
         </el-tab-pane>

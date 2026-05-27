@@ -8,6 +8,12 @@
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
+    QDir dir(QCoreApplication::applicationDirPath());
+    if (!dir.exists("log")) {
+        dir.mkpath("log");
+    }
+    radar::Logger::instance().setLogFile(QCoreApplication::applicationDirPath() + "/log/log.txt");
+
     LOG_INFO("Main", "AudioRadarClient started");
 
     auto& config = radar::Config::instance();

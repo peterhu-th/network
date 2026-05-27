@@ -41,7 +41,7 @@ void Logger::log(LogLevel level, const QString& module, const QString& message) 
     }
 
     static const char* levelStr[] = {"DEBUG", "INFO", "WARN", "ERROR"};
-    auto timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
+    auto timestamp = QDateTime::currentDateTimeUtc().toString("yyyy-MM-dd hh:mm:ss.zzz");
     auto line = QString("[%1] [%2] [%3] %4")
         .arg(timestamp)
         .arg(levelStr[static_cast<int>(level)])

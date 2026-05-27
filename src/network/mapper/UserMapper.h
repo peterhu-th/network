@@ -22,6 +22,11 @@ namespace radar::network {
         [[nodiscard]] Result<std::vector<UserDTO>> findGuests(int limit = 100, int offset = 0) const;
         [[nodiscard]] Result<void> updateStatus(const QString& id, int status) const;
         [[nodiscard]] Result<int> countUsers() const;
+        
+        [[nodiscard]] Result<void> incrementFailedAttempts(const QString& id) const;
+        [[nodiscard]] Result<void> resetFailedAttempts(const QString& id) const;
+        [[nodiscard]] Result<void> lockAccount(const QString& id, int minutes) const;
+        [[nodiscard]] Result<void> updatePassword(const QString& email, const QString& newPasswordHash) const;
 
     private:
         QString m_connectionName;

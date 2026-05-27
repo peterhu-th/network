@@ -24,14 +24,20 @@ namespace radar::network {
                 password_hash VARCHAR(255) NOT NULL,
                 role SMALLINT NOT NULL DEFAULT 0,
                 status SMALLINT NOT NULL DEFAULT 1,
+                failed_attempts SMALLINT NOT NULL DEFAULT 0,
+                locked_until TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         )";
 
         if (!query.exec(sql)) {
-            return Result<void>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "Create users table failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
+
+        query.exec("ALTER TABLE users ADD COLUMN failed_attempts SMALLINT NOT NULL DEFAULT 0");
+        query.exec("ALTER TABLE users ADD COLUMN locked_until TIMESTAMP");
 
         return Result<void>::ok();
     }
@@ -40,18 +46,21 @@ namespace radar::network {
         QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         QSqlQuery query(db);
 
-        query.prepare("INSERT INTO users (id, email, password_hash, role, status, created_at, updated_at) "
-                      "VALUES (:id, :email, :password_hash, :role, :status, :created_at, :updated_at)");
+        query.prepare("INSERT INTO users (id, email, password_hash, role, status, failed_attempts, locked_until, created_at, updated_at) "
+                      "VALUES (:id, :email, :password_hash, :role, :status, :failed_attempts, :locked_until, :created_at, :updated_at)");
         query.bindValue(":id", user.id);
         query.bindValue(":email", user.email);
         query.bindValue(":password_hash", user.passwordHash);
         query.bindValue(":role", user.role);
         query.bindValue(":status", user.status);
+        query.bindValue(":failed_attempts", user.failedAttempts);
+        query.bindValue(":locked_until", user.lockedUntil);
         query.bindValue(":created_at", user.createdAt);
         query.bindValue(":updated_at", user.updatedAt);
 
         if (!query.exec()) {
-            return Result<void>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "Insert user failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
         return Result<void>::ok();
     }
@@ -60,12 +69,13 @@ namespace radar::network {
         QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         QSqlQuery query(db);
 
-        query.prepare("SELECT id, email, password_hash, role, status, created_at, updated_at "
+        query.prepare("SELECT id, email, password_hash, role, status, failed_attempts, locked_until, created_at, updated_at "
                       "FROM users WHERE email = :email LIMIT 1");
         query.bindValue(":email", email);
 
         if (!query.exec()) {
-            return Result<std::optional<UserEntity>>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "FindByEmail failed: " + query.lastError().text());
+            return Result<std::optional<UserEntity>>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
 
         if (query.next()) {
@@ -75,9 +85,10 @@ namespace radar::network {
             user.passwordHash = query.value(2).toString();
             user.role = query.value(3).toInt();
             user.status = query.value(4).toInt();
-            // Handling TIMESTAMP properly if returned as string or QDateTime
-            user.createdAt = query.value(5).toDateTime();
-            user.updatedAt = query.value(6).toDateTime();
+            user.failedAttempts = query.value(5).toInt();
+            user.lockedUntil = query.value(6).toDateTime();
+            user.createdAt = query.value(7).toDateTime();
+            user.updatedAt = query.value(8).toDateTime();
             return Result<std::optional<UserEntity>>::ok(user);
         }
         
@@ -88,12 +99,13 @@ namespace radar::network {
         QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         QSqlQuery query(db);
 
-        query.prepare("SELECT id, email, password_hash, role, status, created_at, updated_at "
+        query.prepare("SELECT id, email, password_hash, role, status, failed_attempts, locked_until, created_at, updated_at "
                       "FROM users WHERE id = :id LIMIT 1");
         query.bindValue(":id", id);
 
         if (!query.exec()) {
-            return Result<std::optional<UserEntity>>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "FindById failed: " + query.lastError().text());
+            return Result<std::optional<UserEntity>>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
 
         if (query.next()) {
@@ -103,8 +115,10 @@ namespace radar::network {
             user.passwordHash = query.value(2).toString();
             user.role = query.value(3).toInt();
             user.status = query.value(4).toInt();
-            user.createdAt = query.value(5).toDateTime();
-            user.updatedAt = query.value(6).toDateTime();
+            user.failedAttempts = query.value(5).toInt();
+            user.lockedUntil = query.value(6).toDateTime();
+            user.createdAt = query.value(7).toDateTime();
+            user.updatedAt = query.value(8).toDateTime();
             return Result<std::optional<UserEntity>>::ok(user);
         }
 
@@ -121,7 +135,8 @@ namespace radar::network {
         query.bindValue(":offset", offset);
 
         if (!query.exec()) {
-            return Result<std::vector<UserDTO>>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "FindGuests failed: " + query.lastError().text());
+            return Result<std::vector<UserDTO>>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
 
         std::vector<UserDTO> guests;
@@ -142,12 +157,14 @@ namespace radar::network {
         QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
         QSqlQuery query(db);
 
-        query.prepare("UPDATE users SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id");
+        query.prepare("UPDATE users SET status = :status, updated_at = :updated_at WHERE id = :id");
         query.bindValue(":status", status);
+        query.bindValue(":updated_at", QDateTime::currentDateTimeUtc());
         query.bindValue(":id", id);
 
         if (!query.exec()) {
-            return Result<void>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "UpdateStatus failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
         return Result<void>::ok();
     }
@@ -158,10 +175,74 @@ namespace radar::network {
 
         query.prepare("SELECT COUNT(*) FROM users");
         if (!query.exec() || !query.next()) {
-            return Result<int>::error(query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "CountUsers failed: " + query.lastError().text());
+            return Result<int>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
 
         return Result<int>::ok(query.value(0).toInt());
+    }
+
+    Result<void> UserMapper::incrementFailedAttempts(const QString& id) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
+        QSqlQuery query(db);
+
+        query.prepare("UPDATE users SET failed_attempts = failed_attempts + 1, updated_at = :updated_at WHERE id = :id");
+        query.bindValue(":updated_at", QDateTime::currentDateTimeUtc());
+        query.bindValue(":id", id);
+
+        if (!query.exec()) {
+            LOG_ERROR("Database", "IncrementFailedAttempts failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
+        }
+        return Result<void>::ok();
+    }
+
+    Result<void> UserMapper::resetFailedAttempts(const QString& id) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
+        QSqlQuery query(db);
+
+        query.prepare("UPDATE users SET failed_attempts = 0, locked_until = NULL, updated_at = :updated_at WHERE id = :id");
+        query.bindValue(":updated_at", QDateTime::currentDateTimeUtc());
+        query.bindValue(":id", id);
+
+        if (!query.exec()) {
+            LOG_ERROR("Database", "ResetFailedAttempts failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
+        }
+        return Result<void>::ok();
+    }
+
+    Result<void> UserMapper::lockAccount(const QString& id, int minutes) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
+        QSqlQuery query(db);
+
+        query.prepare("UPDATE users SET locked_until = :locked_until, updated_at = :updated_at WHERE id = :id");
+        QDateTime lockedUntil = QDateTime::currentDateTimeUtc().addSecs(minutes * 60);
+        query.bindValue(":locked_until", lockedUntil);
+        query.bindValue(":updated_at", QDateTime::currentDateTimeUtc());
+        query.bindValue(":id", id);
+
+        if (!query.exec()) {
+            LOG_ERROR("Database", "LockAccount failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
+        }
+        return Result<void>::ok();
+    }
+
+    Result<void> UserMapper::updatePassword(const QString& email, const QString& newPasswordHash) const {
+        QSqlDatabase db = utils::DbUtils::getConnection(m_connectionName);
+        QSqlQuery query(db);
+
+        query.prepare("UPDATE users SET password_hash = :hash, failed_attempts = 0, locked_until = NULL, updated_at = :updated_at WHERE email = :email");
+        query.bindValue(":hash", newPasswordHash);
+        query.bindValue(":updated_at", QDateTime::currentDateTimeUtc());
+        query.bindValue(":email", email);
+
+        if (!query.exec()) {
+            LOG_ERROR("Database", "UpdatePassword failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
+        }
+        return Result<void>::ok();
     }
 
 }

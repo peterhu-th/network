@@ -27,6 +27,7 @@ namespace radar::network {
         httpServer.route("/auth/send-code", QHttpServerRequest::Method::Options, optionsHandler);
         httpServer.route("/auth/register", QHttpServerRequest::Method::Options, optionsHandler);
         httpServer.route("/auth/login", QHttpServerRequest::Method::Options, optionsHandler);
+        httpServer.route("/auth/reset-password", QHttpServerRequest::Method::Options, optionsHandler);
 
         httpServer.route("/auth/send-code", QHttpServerRequest::Method::Post,
             AuthMiddleware::wrap(AuthLevel::Public, jwtSecret, [this](const QHttpServerRequest& req) {
@@ -41,6 +42,11 @@ namespace radar::network {
         httpServer.route("/auth/login", QHttpServerRequest::Method::Post,
             AuthMiddleware::wrap(AuthLevel::Public, jwtSecret, [this](const QHttpServerRequest& req) {
                 return handleLogin(req);
+            }));
+
+        httpServer.route("/auth/reset-password", QHttpServerRequest::Method::Post,
+            AuthMiddleware::wrap(AuthLevel::Public, jwtSecret, [this](const QHttpServerRequest& req) {
+                return handleResetPassword(req);
             }));
     }
 
@@ -94,5 +100,23 @@ namespace radar::network {
             return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::Unauthorized);
         }
         return NetworkResponse::success(res.value());
+    }
+
+    QHttpServerResponse AuthController::handleResetPassword(const QHttpServerRequest& request) const {
+        QHttpServerResponse errResp = NetworkResponse::success();
+        auto jsonOpt = parseJsonBody(request, errResp);
+        if (!jsonOpt) return errResp;
+        QString email = jsonOpt->value("email").toString().trimmed();
+        QString code = jsonOpt->value("code").toString().trimmed();
+        QString password = jsonOpt->value("password").toString();
+
+        if (email.isEmpty() || code.isEmpty() || password.isEmpty()) {
+            return NetworkResponse::error(static_cast<int>(ErrorCode::InvalidParam), "Email, code, and new password are required", QHttpServerResponse::StatusCode::BadRequest);
+        }
+        auto res = m_authService->resetPassword(email, code, password);
+        if (!res.isOk()) {
+            return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::BadRequest);
+        }
+        return NetworkResponse::success();
     }
 }

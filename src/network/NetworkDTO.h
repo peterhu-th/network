@@ -79,6 +79,8 @@ namespace radar::network {
         QString passwordHash;
         int role = 0; // 0: Guest, 1: Admin
         int status = 1; // 1: 正常, 0: 禁用
+        int failedAttempts = 0;
+        QDateTime lockedUntil;
         QDateTime createdAt;
         QDateTime updatedAt;
     };

@@ -21,6 +21,7 @@ namespace radar::network {
         [[nodiscard]] QHttpServerResponse handleSendCode(const QHttpServerRequest& request) const;
         [[nodiscard]] QHttpServerResponse handleRegister(const QHttpServerRequest& request) const;
         [[nodiscard]] QHttpServerResponse handleLogin(const QHttpServerRequest& request) const;
+        [[nodiscard]] QHttpServerResponse handleResetPassword(const QHttpServerRequest& request) const;
     };
 }
 

@@ -3,6 +3,7 @@
 #include <QSqlQuery>
 #include <QDebug>
 #include "AudioRecordMapper.h"
+#include "../../core/Logger.h"
 
 namespace radar::network {
     AudioRecordMapper::AudioRecordMapper(QString connectionName, QObject* parent)
@@ -32,7 +33,8 @@ namespace radar::network {
                 )
             )";
             if (!query.exec(sql)) {
-                return Result<void>::error("Create table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
+                LOG_ERROR("Database", "Create audio_records table failed: " + query.lastError().text());
+                return Result<void>::error("Database init failed", ErrorCode::DatabaseInitFailed);
             }
         }
 
@@ -45,7 +47,8 @@ namespace radar::network {
                 )
             )";
             if (!query.exec(sqlLogs)) {
-                return Result<void>::error("Create download_logs table failed: " + query.lastError().text(), ErrorCode::DatabaseInitFailed);
+                LOG_ERROR("Database", "Create download_logs table failed: " + query.lastError().text());
+                return Result<void>::error("Database init failed", ErrorCode::DatabaseInitFailed);
             }
         }
         return Result<void>::ok();
@@ -59,7 +62,8 @@ namespace radar::network {
 
         QSqlQuery query(db);
         if (!query.exec("SELECT id, file_path FROM audio_records")) {
-            return Result<std::vector<std::pair<qint64, QString>>>::error("Query all file paths failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "Query all file paths failed: " + query.lastError().text());
+            return Result<std::vector<std::pair<qint64, QString>>>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
 
         std::vector<std::pair<qint64, QString>> results;
@@ -88,7 +92,8 @@ namespace radar::network {
         query.bindValue(":size", QVariant::fromValue(record.fileSize));
 
         if (!query.exec()) {
-            return Result<void>::error("Insert failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "Insert record failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
         return Result<void>::ok();
     }
@@ -104,7 +109,8 @@ namespace radar::network {
         query.bindValue(":id", QVariant::fromValue(id));
 
         if (!query.exec()) {
-            return Result<void>::error("Delete record failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "Delete record failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
 
         return Result<void>::ok();
@@ -141,7 +147,10 @@ namespace radar::network {
         query.bindValue(":limit", limit);
         query.bindValue(":offset", offset);
 
-        if (!query.exec()) return Result<std::vector<AudioRecord>>::error("Query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        if (!query.exec()) {
+            LOG_ERROR("Database", "Query failed: " + query.lastError().text());
+            return Result<std::vector<AudioRecord>>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
+        }
 
         std::vector<AudioRecord> records;
         while (query.next()) {
@@ -172,7 +181,10 @@ namespace radar::network {
         if (endTime.isValid()) query.bindValue(":end_time", endTime);
         if (!format.isEmpty()) query.bindValue(":format", "%." + format);
 
-        if (!query.exec()) return Result<int>::error("Count query failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+        if (!query.exec()) {
+            LOG_ERROR("Database", "Count query failed: " + query.lastError().text());
+            return Result<int>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
+        }
         if (query.next()) return Result<int>::ok(query.value(0).toInt());
         return Result<int>::ok(0);
     }
@@ -201,7 +213,8 @@ namespace radar::network {
         query.bindValue(":downloaded_at", time);
 
         if (!query.exec()) {
-            return Result<void>::error("Insert download log failed: " + query.lastError().text(), ErrorCode::DatabaseQueryFailed);
+            LOG_ERROR("Database", "Insert download log failed: " + query.lastError().text());
+            return Result<void>::error("Database query failed", ErrorCode::DatabaseQueryFailed);
         }
         return Result<void>::ok();
     }

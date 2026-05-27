@@ -41,17 +41,6 @@ namespace radar::network {
         m_authController = std::make_unique<AuthController>(m_authService);
         m_adminController = std::make_unique<AdminController>(m_adminService, m_authService);
 
-        const QString adminEmail = Config::instance().adminEmail();
-        const QString adminPassword = Config::instance().adminPassword();
-        if (!adminEmail.isEmpty() && !adminPassword.isEmpty()) {
-            auto adminRes = m_authService->initSystemAdmin(adminEmail, adminPassword);
-            if (!adminRes.isOk()) {
-                qWarning() << "Failed to initialize system admin:" << adminRes.errorMessage();
-            }
-        } else {
-            qWarning() << "System admin bootstrap skipped because admin email or password is empty";
-        }
-
         setupRoutes();
         m_authController->setupRoutes(*m_httpServer, m_jwtSecret);
         m_adminController->setupRoutes(*m_httpServer, m_jwtSecret, m_userMapper);

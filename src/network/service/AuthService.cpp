@@ -5,6 +5,8 @@
 #include "../utils/IdGenerator.h"
 #include <QRandomGenerator>
 #include <QDateTime>
+#include <QtConcurrent>
+#include <QRegularExpression>
 
 namespace radar::network {
 
@@ -22,8 +24,8 @@ namespace radar::network {
         user.passwordHash = QString::fromStdString(CryptoUtils::hashPassword(password.toStdString()));
         user.role = role;
         user.status = 1;
-        user.createdAt = QDateTime::currentDateTime();
-        user.updatedAt = QDateTime::currentDateTime();
+        user.createdAt = QDateTime::currentDateTimeUtc();
+        user.updatedAt = QDateTime::currentDateTimeUtc();
         return Result<UserEntity>::ok(user);
     }
 
@@ -38,7 +40,12 @@ namespace radar::network {
         std::string subject = "Audio Radar Registration Code";
         std::string body = "Your verification code is: " + codeStr + "\nThis code will expire in 5 minutes.";
 
-        return m_smtpClient->sendEmail(email.toStdString(), subject, body);
+        // Asynchronously send email
+        QtConcurrent::run([smtp = m_smtpClient, email, subject, body]() {
+            smtp->sendEmail(email.toStdString(), subject, body);
+        });
+
+        return Result<void>::ok();
     }
 
     Result<void> AuthService::registerUser(const QString& email, const QString& code, const QString& password) const {
@@ -55,11 +62,28 @@ namespace radar::network {
         utils::MemoryCache::getInstance().remove("VERIFY_" + email.toStdString());
 
         // 检查邮箱是否已注册
+        QRegularExpression emailRegex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+        if (!emailRegex.match(email).hasMatch()) {
+            return Result<void>::error("Invalid email format", ErrorCode::InvalidParam);
+        }
+
+        QRegularExpression pwdRegex("^(?=.*[a-zA-Z])(?=.*\\d).{8,16}$");
+        if (!pwdRegex.match(password).hasMatch()) {
+            return Result<void>::error("Password must be 8-16 characters and contain letters and numbers", ErrorCode::InvalidParam);
+        }
+
         auto existing = m_userMapper->findByEmail(email);
         if (existing.isOk() && existing.value().has_value()) {
             return Result<void>::error("Email is already registered", ErrorCode::InvalidParam);
         }
-        auto userRes = buildUserEntity(email, password, 0);
+
+        int role = 0;
+        auto countRes = m_userMapper->countUsers();
+        if (countRes.isOk() && countRes.value() == 0) {
+            role = 1;
+        }
+
+        auto userRes = buildUserEntity(email, password, role);
         if (!userRes.isOk()) return Result<void>::error(userRes.errorMessage(), userRes.errorCode());
         return m_userMapper->insert(userRes.value());
     }
@@ -76,11 +100,25 @@ namespace radar::network {
             return Result<QJsonObject>::error("Account has been disabled", ErrorCode::AuthorizationFailed);
         }
 
+        if (user.lockedUntil.isValid() && user.lockedUntil > QDateTime::currentDateTimeUtc()) {
+            return Result<QJsonObject>::error("Account is temporarily locked. Please try again later.", ErrorCode::AuthorizationFailed);
+        }
+
         if (!CryptoUtils::verifyPassword(password.toStdString(), user.passwordHash.toStdString())) {
+            m_userMapper->incrementFailedAttempts(user.id);
+            if (user.failedAttempts + 1 >= 5) {
+                m_userMapper->lockAccount(user.id, 5);
+                return Result<QJsonObject>::error("Too many failed attempts. Account locked for 5 minutes.", ErrorCode::AuthorizationFailed);
+            }
             return Result<QJsonObject>::error("Invalid email or password", ErrorCode::AuthorizationFailed);
         }
 
-        QString token = JwtUtils::generateToken(user.id, user.role, m_jwtSecret);
+        // Reset failed attempts on success
+        if (user.failedAttempts > 0) {
+            m_userMapper->resetFailedAttempts(user.id);
+        }
+
+        QString token = JwtUtils::generateToken(user.id, user.role, user.passwordHash, m_jwtSecret);
         
         QJsonObject resData;
         resData["token"] = token;
@@ -91,18 +129,34 @@ namespace radar::network {
         return Result<QJsonObject>::ok(resData);
     }
 
-    Result<void> AuthService::initSystemAdmin(const QString& adminEmail, const QString& adminPassword) const {
-        auto countRes = m_userMapper->countUsers();
-        if (!countRes.isOk()) {
-            return Result<void>::error("Failed to check user count", countRes.errorCode());
+    Result<void> AuthService::resetPassword(const QString& email, const QString& code, const QString& newPassword) const {
+        std::string cachedCode;
+        if (!utils::MemoryCache::getInstance().get("VERIFY_" + email.toStdString(), cachedCode)) {
+            return Result<void>::error("Verification code expired or not found", ErrorCode::InvalidParam);
         }
 
-        if (countRes.value() > 0) return Result<void>::ok();
+        if (QString::fromStdString(cachedCode) != code) {
+            return Result<void>::error("Incorrect verification code", ErrorCode::InvalidParam);
+        }
 
-        auto userRes = buildUserEntity(adminEmail, adminPassword, 1);
-        if (!userRes.isOk()) return Result<void>::error(userRes.errorMessage(), userRes.errorCode());
+        QRegularExpression pwdRegex("^(?=.*[a-zA-Z])(?=.*\\d).{8,16}$");
+        if (!pwdRegex.match(newPassword).hasMatch()) {
+            return Result<void>::error("Password must be 8-16 characters and contain letters and numbers", ErrorCode::InvalidParam);
+        }
 
-        return m_userMapper->insert(userRes.value());
+        auto existing = m_userMapper->findByEmail(email);
+        if (!existing.isOk() || !existing.value().has_value()) {
+            return Result<void>::error("User not found", ErrorCode::RecordNotFound);
+        }
+
+        std::string newHash = CryptoUtils::hashPassword(newPassword.toStdString());
+        auto res = m_userMapper->updatePassword(email, QString::fromStdString(newHash));
+        
+        if (res.isOk()) {
+            utils::MemoryCache::getInstance().remove("VERIFY_" + email.toStdString());
+        }
+
+        return res;
     }
 
     Result<void> AuthService::createAdmin(const QString& email, const QString& password) const {

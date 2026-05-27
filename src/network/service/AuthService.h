@@ -18,10 +18,10 @@ namespace radar::network {
         [[nodiscard]] Result<void> registerUser(const QString& email, const QString& code, const QString& password) const;
         [[nodiscard]] Result<QJsonObject> login(const QString& email, const QString& password) const;
         
-        // 生成管理员，如果系统无用户
-        [[nodiscard]] Result<void> initSystemAdmin(const QString& adminEmail, const QString& adminPassword) const;
+        // 重置密码
+        [[nodiscard]] Result<void> resetPassword(const QString& email, const QString& code, const QString& newPassword) const;
         
-        // 创建管理员（必须已有管理员权限才能调用）
+        // 创建管理员
         [[nodiscard]] Result<void> createAdmin(const QString& email, const QString& password) const;
 
     private:
