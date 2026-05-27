@@ -2,6 +2,8 @@
 #include <curl/curl.h>
 #include <cstring>
 #include <QtGlobal>
+#include <QDateTime>
+#include <QUuid>
 #include "../../core/Logger.h"
 
 namespace radar::network {
@@ -10,6 +12,21 @@ namespace radar::network {
         const char* text;
         size_t bytesLeft;
     };
+
+    static int curlDebugCallback(CURL* handle, curl_infotype type, char* data, size_t size, void* userp) {
+        (void)handle;
+        (void)userp;
+        if (type == CURLINFO_TEXT || type == CURLINFO_HEADER_IN) {
+            std::string text(data, size);
+            while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
+                text.pop_back();
+            }
+            if (!text.empty()) {
+                LOG_INFO("SmtpClient", QString("CURL: ") + QString::fromStdString(text));
+            }
+        }
+        return 0;
+    }
 
     static size_t payloadSource(char* ptr, size_t size, size_t nmemb, void* userp) {
         auto* data = static_cast<EmailData*>(userp);
@@ -58,15 +75,25 @@ namespace radar::network {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
         }
 
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curlDebugCallback);
+
         std::string mailFrom = "<" + m_username + ">";
         std::string mailTo = "<" + to + ">";
 
-        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, m_username.c_str());
+        curl_easy_setopt(curl, CURLOPT_MAIL_FROM, mailFrom.c_str());
         struct curl_slist* recipients = nullptr;
-        recipients = curl_slist_append(recipients, to.c_str());
+        recipients = curl_slist_append(recipients, mailTo.c_str());
         curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
 
-        std::string payload = "To: " + to + "\r\n"
+        QString dateStr = QDateTime::currentDateTimeUtc().toString("ddd, dd MMM yyyy HH:mm:ss +0000");
+        QString senderDomain = QString::fromStdString(m_username).split("@").last();
+        if (senderDomain.isEmpty()) senderDomain = "audio-radar.local";
+        QString messageId = "<" + QUuid::createUuid().toString(QUuid::WithoutBraces) + "@" + senderDomain + ">";
+
+        std::string payload = "Date: " + dateStr.toStdString() + "\r\n"
+                              "Message-ID: " + messageId.toStdString() + "\r\n"
+                              "To: " + to + "\r\n"
                               "From: Audio Radar <" + m_username + ">\r\n"
                               "Subject: " + subject + "\r\n"
                               "\r\n" + body + "\r\n";

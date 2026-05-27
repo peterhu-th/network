@@ -1,8 +1,6 @@
 #ifndef AUTH_SERVICE_H
 #define AUTH_SERVICE_H
 
-#include <QString>
-#include <QJsonObject>
 #include <memory>
 #include "../../core/Types.h"
 #include "../mapper/UserMapper.h"
@@ -14,7 +12,7 @@ namespace radar::network {
         AuthService(std::shared_ptr<UserMapper> userMapper, std::shared_ptr<SmtpClient> smtpClient, QString jwtSecret);
         ~AuthService() = default;
 
-        [[nodiscard]] Result<void> sendVerificationCode(const QString& email) const;
+        [[nodiscard]] Result<void> sendVerificationCode(const QString& email, const QString& action) const;
         [[nodiscard]] Result<void> registerUser(const QString& email, const QString& code, const QString& password) const;
         [[nodiscard]] Result<QJsonObject> login(const QString& email, const QString& password) const;
         

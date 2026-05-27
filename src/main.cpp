@@ -5,9 +5,12 @@
 #include "audio/AudioSourceFactory.h"
 #include "processing/include/AudioProcessingService.h"
 #include "network/controller/AudioRecordController.h"
+#include <curl/curl.h>
 
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
+    curl_global_init(CURL_GLOBAL_ALL);
+
     QDir dir(QCoreApplication::applicationDirPath());
     if (!dir.exists("log")) {
         dir.mkpath("log");
@@ -93,5 +96,7 @@ int main(int argc, char* argv[]) {
         LOG_ERROR("Audio", startResult.errorMessage());
         return -1;
     }
-    return app.exec();
+    int ret = app.exec();
+    curl_global_cleanup();
+    return ret;
 }

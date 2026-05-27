@@ -27,7 +27,7 @@
     "smtp": {
         "server": "smtp.qq.com",
         "port": 465,
-        "username": "",
+        "username": "2306314366@qq.com",
         "password": ""
     },
     "processing": {

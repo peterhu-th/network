@@ -57,10 +57,16 @@ namespace radar::network {
             return NetworkResponse::error(static_cast<int>(ErrorCode::InvalidParam), "Invalid JSON format", QHttpServerResponse::StatusCode::BadRequest);
         }
         QString email = doc.object().value("email").toString().trimmed();
+        QString action = doc.object().value("action").toString().trimmed();
+        
         if (email.isEmpty()) {
             return NetworkResponse::error(static_cast<int>(ErrorCode::InvalidParam), "Email is required", QHttpServerResponse::StatusCode::BadRequest);
         }
-        auto res = m_authService->sendVerificationCode(email);
+        if (action.isEmpty()) {
+            action = "register"; // Default to register for backward compatibility
+        }
+
+        auto res = m_authService->sendVerificationCode(email, action);
         if (!res.isOk()) {
             return NetworkResponse::error(static_cast<int>(res.errorCode()), res.errorMessage(), QHttpServerResponse::StatusCode::InternalServerError);
         }

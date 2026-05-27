@@ -33,8 +33,10 @@ const resetForm = reactive({
 // 处理发送验证码
 const handleSendCode = async () => {
   let emailToSend = registerForm.email
+  let actionToSend = 'register'
   if (activeTab.value === 'reset') {
     emailToSend = resetForm.email
+    actionToSend = 'reset'
   }
 
   if (!emailToSend) {
@@ -43,7 +45,10 @@ const handleSendCode = async () => {
   }
   codeLoading.value = true
   try {
-    const response = await axios.post(`${SERVER_URL}/auth/send-code`, { email: emailToSend })
+    const response = await axios.post(`${SERVER_URL}/auth/send-code`, { 
+      email: emailToSend,
+      action: actionToSend
+    })
     if (response.data.code === 20000) {
       ElMessage.success('验证码已发送至您的邮箱，5分钟内有效')
       countdown.value = 60

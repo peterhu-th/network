@@ -3,10 +3,10 @@
 #include "../utils/CryptoUtils.h"
 #include "../utils/JwtUtils.h"
 #include "../utils/IdGenerator.h"
-#include <QRandomGenerator>
+#include "../core/logger.h"
 #include <QDateTime>
-#include <QtConcurrent>
 #include <QRegularExpression>
+#include <QtConcurrent>
 
 namespace radar::network {
 
@@ -29,7 +29,17 @@ namespace radar::network {
         return Result<UserEntity>::ok(user);
     }
 
-    Result<void> AuthService::sendVerificationCode(const QString& email) const {
+    Result<void> AuthService::sendVerificationCode(const QString& email, const QString& action) const {
+        auto existing = m_userMapper->findByEmail(email);
+        bool isRegistered = existing.isOk() && existing.value().has_value();
+
+        if (action == "register" && isRegistered) {
+            return Result<void>::error("Email is already registered", ErrorCode::InvalidParam);
+        }
+        if (action == "reset" && !isRegistered) {
+            return Result<void>::error("Email is not registered", ErrorCode::InvalidParam);
+        }
+
         // 生成 6 位随机数
         int codeInt = QRandomGenerator::global()->bounded(100000, 1000000);
         std::string codeStr = std::to_string(codeInt);
@@ -37,12 +47,17 @@ namespace radar::network {
         // 存入缓存 5分钟 (300秒)
         utils::MemoryCache::getInstance().set("VERIFY_" + email.toStdString(), codeStr, 300);
 
-        std::string subject = "Audio Radar Registration Code";
-        std::string body = "Your verification code is: " + codeStr + "\nThis code will expire in 5 minutes.";
+        std::string subject = action == "reset" ? "Audio Radar Password Reset Code" : "Audio Radar Registration Code";
+        std::string body = action == "reset" ? 
+                           "Your password reset verification code is: " + codeStr + "\r\nThis code will expire in 5 minutes." :
+                           "Your registration verification code is: " + codeStr + "\r\nThis code will expire in 5 minutes.";
 
         // Asynchronously send email
-        QtConcurrent::run([smtp = m_smtpClient, email, subject, body]() {
-            smtp->sendEmail(email.toStdString(), subject, body);
+        (void)QtConcurrent::run([smtp = m_smtpClient, email, subject, body]() {
+            auto res = smtp->sendEmail(email.toStdString(), subject, body);
+            if (!res.isOk()) {
+                LOG_ERROR("Network", "Failed to send verification email to " + email + ": " + res.errorMessage());
+            }
         });
 
         return Result<void>::ok();
@@ -105,9 +120,13 @@ namespace radar::network {
         }
 
         if (!CryptoUtils::verifyPassword(password.toStdString(), user.passwordHash.toStdString())) {
-            m_userMapper->incrementFailedAttempts(user.id);
+            if (auto res = m_userMapper->incrementFailedAttempts(user.id); !res.isOk()) {
+                LOG_ERROR("Database", "incrementFailedAttempts failed: " + res.errorMessage());
+            }
             if (user.failedAttempts + 1 >= 5) {
-                m_userMapper->lockAccount(user.id, 5);
+                if (auto res = m_userMapper->lockAccount(user.id, 5); !res.isOk()) {
+                    LOG_ERROR("Database", "lockAccount failed: " + res.errorMessage());
+                }
                 return Result<QJsonObject>::error("Too many failed attempts. Account locked for 5 minutes.", ErrorCode::AuthorizationFailed);
             }
             return Result<QJsonObject>::error("Invalid email or password", ErrorCode::AuthorizationFailed);
@@ -115,7 +134,9 @@ namespace radar::network {
 
         // Reset failed attempts on success
         if (user.failedAttempts > 0) {
-            m_userMapper->resetFailedAttempts(user.id);
+            if (auto res = m_userMapper->resetFailedAttempts(user.id); !res.isOk()) {
+                LOG_ERROR("Database", "resetFailedAttempts failed: " + res.errorMessage());
+            }
         }
 
         QString token = JwtUtils::generateToken(user.id, user.role, user.passwordHash, m_jwtSecret);
