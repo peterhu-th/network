@@ -1,8 +1,5 @@
 #include <QDirIterator>
-#include <QFileInfo>
-#include <QProcess>
 #include <QCoreApplication>
-#include <QDir>
 #include <taglib/fileref.h>
 #include <taglib/audioproperties.h>
 #include "IdGenerator.h"
@@ -130,7 +127,7 @@ namespace radar::network {
             QJsonDocument doc = QJsonDocument::fromJson(jsonFile.readAll());
             if (!doc.isNull() && doc.isObject()) {
                 QJsonObject obj = doc.object();
-                // 若 json 文件中无信息则使用操作系统记录的最后修改时间
+                // 若 json 文件中无信息，则使用操作系统记录的最后修改时间
                 if (obj.contains("timestamp")) {
                     int64_t ts = obj["timestamp"].toVariant().toLongLong();
                     return QDateTime::fromMSecsSinceEpoch(ts);

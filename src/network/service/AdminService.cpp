@@ -20,6 +20,6 @@ namespace radar::network {
         if (userRes.value().value().role != 0) {
             return Result<void>::error("Only guest users can be revoked", ErrorCode::InvalidParam);
         }
-        return m_userMapper->updateStatus(userId, 0); // 0 = 禁用/撤销
+        return m_userMapper->updateStatus(userId, 0);
     }
 }

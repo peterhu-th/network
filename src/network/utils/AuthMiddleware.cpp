@@ -40,13 +40,13 @@ namespace radar::network {
 
     bool AuthMiddleware::isAuthorized(const TokenPayload& payload, AuthLevel level) {
         if (level == AuthLevel::Public) return true;
-        if (level == AuthLevel::Guest) return true; // Anyone with a valid token is at least a Guest
+        if (level == AuthLevel::Guest) return true;
         if (level == AuthLevel::Admin) return payload.role == 1;
         return false;
     }
 
-    AuthMiddleware::NormalHandler AuthMiddleware::wrap(AuthLevel level, const QString& jwtSecret, NormalHandler handler,
-                                                       std::shared_ptr<UserMapper> userMapper) {
+    AuthMiddleware::NormalHandler AuthMiddleware::wrap(AuthLevel level, const QString& jwtSecret, const NormalHandler& handler,
+                                                       const std::shared_ptr<UserMapper>& userMapper) {
         return [level, jwtSecret, handler, userMapper](const QHttpServerRequest& req) -> QHttpServerResponse {
             if (level != AuthLevel::Public) {
                 auto authRes = checkAuth(req, jwtSecret, userMapper);
@@ -61,8 +61,8 @@ namespace radar::network {
         };
     }
 
-    AuthMiddleware::AsyncHandler AuthMiddleware::wrapAsync(AuthLevel level, const QString& jwtSecret, AsyncHandler handler,
-                                                           std::shared_ptr<UserMapper> userMapper) {
+    AuthMiddleware::AsyncHandler AuthMiddleware::wrapAsync(AuthLevel level, const QString& jwtSecret, const AsyncHandler& handler,
+                                                           const std::shared_ptr<UserMapper>& userMapper) {
         return [level, jwtSecret, handler, userMapper](const QHttpServerRequest& req, QHttpServerResponder& responder) {
             if (level != AuthLevel::Public) {
                 auto authRes = checkAuth(req, jwtSecret, userMapper);

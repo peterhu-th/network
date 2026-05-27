@@ -1,7 +1,6 @@
 #ifndef SMTP_CLIENT_H
 #define SMTP_CLIENT_H
 
-#include <string>
 #include "../../core/Types.h"
 
 namespace radar::network {
@@ -10,7 +9,6 @@ namespace radar::network {
         SmtpClient(std::string smtpServer, int port, std::string username, std::string password);
         ~SmtpClient() = default;
 
-        // 发送验证码邮件
         [[nodiscard]] Result<void> sendEmail(const std::string& to, const std::string& subject, const std::string& body) const;
 
     private:
@@ -21,4 +19,4 @@ namespace radar::network {
     };
 }
 
-#endif // SMTP_CLIENT_H
+#endif

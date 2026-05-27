@@ -1,9 +1,8 @@
-#include <QDebug>
 #include <QMimeDatabase>
 #include <QDir>
 #include <QPointer>
 #include <QtConcurrent/QtConcurrentRun>
-#include <QFuture>
+#include <QCryptographicHash>
 #include "AudioRecordService.h"
 #include "../mapper/AudioRecordMapper.h"
 #include "../utils/ThrottledFile.h"

@@ -1,6 +1,5 @@
 #include "AudioRecordController.h"
 #include "../NetworkResponse.h"
-#include "utils/JwtUtils.h"
 #include "../utils/AuthMiddleware.h"
 #include "../../core/Config.h"
 

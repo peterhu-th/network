@@ -6,8 +6,7 @@
 #include "../../core/Types.h"
 
 namespace radar::network {
-    // 雪花算法 ID 生成器
-    // ID 结构：1 位符号位 (0) + 41 位时间戳 + 10 位机器 ID + 12 位序列号
+    // 雪花算法 ID 生成器：1 位符号位 (0) + 41 位时间戳 + 10 位机器 ID + 12 位序列号
     class IdGenerator {
     public:
         static IdGenerator& instance();

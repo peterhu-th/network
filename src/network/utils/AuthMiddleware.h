@@ -2,19 +2,15 @@
 #define AUTH_MIDDLEWARE_H
 
 #include <QHttpServerRequest>
-#include <QHttpServerResponse>
-#include <QHttpServerResponder>
-#include <functional>
-#include <memory>
 #include "JwtUtils.h"
 #include "../NetworkResponse.h"
 #include "../mapper/UserMapper.h"
 
 namespace radar::network {
     enum class AuthLevel {
-        Public, // No authentication required
-        Guest,  // Valid JWT required (role >= 0)
-        Admin   // Valid JWT required, and role == 1
+        Public,
+        Guest,
+        Admin
     };
 
     class AuthMiddleware {
@@ -22,18 +18,15 @@ namespace radar::network {
         using NormalHandler = std::function<QHttpServerResponse(const QHttpServerRequest&)>;
         using AsyncHandler = std::function<void(const QHttpServerRequest&, QHttpServerResponder&)>;
 
-        // Wraps a normal handler with authentication check
-        static NormalHandler wrap(AuthLevel level, const QString& jwtSecret, NormalHandler handler,
-                                  std::shared_ptr<UserMapper> userMapper = nullptr);
+        static NormalHandler wrap(AuthLevel level, const QString& jwtSecret, const NormalHandler& handler,
+                                  const std::shared_ptr<UserMapper>& userMapper = nullptr);
 
-        // Wraps an async handler (responder-based) with authentication check
-        static AsyncHandler wrapAsync(AuthLevel level, const QString& jwtSecret, AsyncHandler handler,
-                                      std::shared_ptr<UserMapper> userMapper = nullptr);
+        static AsyncHandler wrapAsync(AuthLevel level, const QString& jwtSecret, const AsyncHandler& handler,
+                                      const std::shared_ptr<UserMapper>& userMapper = nullptr);
 
-        // Wraps a normal handler with 1 string argument
         template<typename Func>
         static auto wrap1(AuthLevel level, const QString& jwtSecret, Func handler,
-                          std::shared_ptr<UserMapper> userMapper = nullptr) {
+                          const std::shared_ptr<UserMapper>& userMapper = nullptr) {
             return [level, jwtSecret, handler, userMapper](const QString& arg1, const QHttpServerRequest& req) -> QHttpServerResponse {
                 if (level != AuthLevel::Public) {
                     auto authRes = checkAuth(req, jwtSecret, userMapper);
@@ -48,10 +41,9 @@ namespace radar::network {
             };
         }
 
-        // Wraps an async handler with 1 string argument
         template<typename Func>
         static auto wrapAsync1(AuthLevel level, const QString& jwtSecret, Func handler,
-                               std::shared_ptr<UserMapper> userMapper = nullptr) {
+                               const std::shared_ptr<UserMapper>& userMapper = nullptr) {
             return [level, jwtSecret, handler, userMapper](const QString& arg1, const QHttpServerRequest& req, QHttpServerResponder& responder) {
                 if (level != AuthLevel::Public) {
                     auto authRes = checkAuth(req, jwtSecret, userMapper);
@@ -68,11 +60,10 @@ namespace radar::network {
             };
         }
 
-    public:
         static Result<TokenPayload> checkAuth(const QHttpServerRequest& request, const QString& jwtSecret,
                                               const std::shared_ptr<UserMapper>& userMapper = nullptr);
         static bool isAuthorized(const TokenPayload& payload, AuthLevel level);
     };
 }
 
-#endif // AUTH_MIDDLEWARE_H
+#endif

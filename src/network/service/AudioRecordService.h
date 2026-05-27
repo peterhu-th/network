@@ -1,10 +1,6 @@
 #ifndef AUDIO_RECORD_SERVICE_H
 #define AUDIO_RECORD_SERVICE_H
 
-#include <QObject>
-#include <memory>
-#include <vector>
-#include <QCryptographicHash>
 #include <QReadWriteLock>
 #include "../utils/FileIndexer.h"
 #include "../NetworkDTO.h"

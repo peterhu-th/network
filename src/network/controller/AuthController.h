@@ -1,7 +1,6 @@
 #ifndef AUTH_CONTROLLER_H
 #define AUTH_CONTROLLER_H
 
-#include <memory>
 #include <QHttpServer>
 #include "../service/AuthService.h"
 
@@ -25,4 +24,4 @@ namespace radar::network {
     };
 }
 
-#endif // AUTH_CONTROLLER_H
+#endif

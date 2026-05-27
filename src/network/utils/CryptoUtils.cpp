@@ -1,14 +1,14 @@
-#include "CryptoUtils.h"
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <iomanip>
 #include <QByteArray>
+#include "CryptoUtils.h"
 
 namespace radar::network {
 
-    static const int SALT_LEN = 16;
-    static const int HASH_LEN = 32; // SHA-256 length
-    static const int ITERATIONS = 310000;
+    static constexpr int SALT_LEN = 16;
+    static constexpr int HASH_LEN = 32;
+    static constexpr int ITERATIONS = 310000;
 
     std::string CryptoUtils::hashPassword(const std::string& raw_password) {
         unsigned char salt[SALT_LEN];
@@ -17,7 +17,7 @@ namespace radar::network {
         }
 
         unsigned char hash[HASH_LEN];
-        if (PKCS5_PBKDF2_HMAC(raw_password.c_str(), raw_password.length(),
+        if (PKCS5_PBKDF2_HMAC(raw_password.c_str(), static_cast<int>(raw_password.length()),
                               salt, SALT_LEN, ITERATIONS,
                               EVP_sha256(), HASH_LEN, hash) != 1) {
             return "";
@@ -46,14 +46,12 @@ namespace radar::network {
         }
 
         unsigned char hash[HASH_LEN];
-        if (PKCS5_PBKDF2_HMAC(raw_password.c_str(), raw_password.length(),
+        if (PKCS5_PBKDF2_HMAC(raw_password.c_str(), static_cast<int>(raw_password.length()),
                               reinterpret_cast<const unsigned char*>(salt.constData()), SALT_LEN, ITERATIONS,
                               EVP_sha256(), HASH_LEN, hash) != 1) {
             return false;
         }
 
-        // Constant-time comparison
         return CRYPTO_memcmp(expectedHash.constData(), hash, HASH_LEN) == 0;
     }
-
 }

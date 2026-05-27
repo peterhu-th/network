@@ -1,7 +1,6 @@
 #include "AuthController.h"
 #include "../NetworkResponse.h"
 #include "../utils/AuthMiddleware.h"
-#include <QJsonDocument>
 
 namespace radar::network {
 

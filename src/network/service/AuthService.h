@@ -1,7 +1,6 @@
 #ifndef AUTH_SERVICE_H
 #define AUTH_SERVICE_H
 
-#include <memory>
 #include "../../core/Types.h"
 #include "../mapper/UserMapper.h"
 #include "../utils/SmtpClient.h"
@@ -15,11 +14,7 @@ namespace radar::network {
         [[nodiscard]] Result<void> sendVerificationCode(const QString& email, const QString& action) const;
         [[nodiscard]] Result<void> registerUser(const QString& email, const QString& code, const QString& password) const;
         [[nodiscard]] Result<QJsonObject> login(const QString& email, const QString& password) const;
-        
-        // 重置密码
         [[nodiscard]] Result<void> resetPassword(const QString& email, const QString& code, const QString& newPassword) const;
-        
-        // 创建管理员
         [[nodiscard]] Result<void> createAdmin(const QString& email, const QString& password) const;
 
     private:
@@ -29,4 +24,4 @@ namespace radar::network {
     };
 }
 
-#endif // AUTH_SERVICE_H
+#endif

@@ -1,12 +1,11 @@
+#include <QRandomGenerator>
+#include <QtConcurrent/QtConcurrentRun>
 #include "AuthService.h"
 #include "../utils/MemoryCache.h"
 #include "../utils/CryptoUtils.h"
 #include "../utils/JwtUtils.h"
 #include "../utils/IdGenerator.h"
-#include "../core/logger.h"
-#include <QDateTime>
-#include <QRegularExpression>
-#include <QtConcurrent>
+#include "../../core/logger.h"
 
 namespace radar::network {
 
@@ -40,11 +39,10 @@ namespace radar::network {
             return Result<void>::error("Email is not registered", ErrorCode::InvalidParam);
         }
 
-        // 生成 6 位随机数
         int codeInt = QRandomGenerator::global()->bounded(100000, 1000000);
         std::string codeStr = std::to_string(codeInt);
 
-        // 存入缓存 5分钟 (300秒)
+        // 存入缓存 5 分钟
         utils::MemoryCache::getInstance().set("VERIFY_" + email.toStdString(), codeStr, 300);
 
         std::string subject = action == "reset" ? "Audio Radar Password Reset Code" : "Audio Radar Registration Code";
@@ -52,7 +50,7 @@ namespace radar::network {
                            "Your password reset verification code is: " + codeStr + "\r\nThis code will expire in 5 minutes." :
                            "Your registration verification code is: " + codeStr + "\r\nThis code will expire in 5 minutes.";
 
-        // Asynchronously send email
+        // 异步发送验证码
         (void)QtConcurrent::run([smtp = m_smtpClient, email, subject, body]() {
             auto res = smtp->sendEmail(email.toStdString(), subject, body);
             if (!res.isOk()) {
@@ -72,17 +70,14 @@ namespace radar::network {
         if (QString::fromStdString(cachedCode) != code) {
             return Result<void>::error("Incorrect verification code", ErrorCode::InvalidParam);
         }
-
-        // 防重放，验证成功后立即删除
         utils::MemoryCache::getInstance().remove("VERIFY_" + email.toStdString());
 
-        // 检查邮箱是否已注册
-        QRegularExpression emailRegex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+        static const QRegularExpression emailRegex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
         if (!emailRegex.match(email).hasMatch()) {
             return Result<void>::error("Invalid email format", ErrorCode::InvalidParam);
         }
 
-        QRegularExpression pwdRegex("^(?=.*[a-zA-Z])(?=.*\\d).{8,16}$");
+        static const QRegularExpression pwdRegex("^(?=.*[a-zA-Z])(?=.*\\d).{8,16}$");
         if (!pwdRegex.match(password).hasMatch()) {
             return Result<void>::error("Password must be 8-16 characters and contain letters and numbers", ErrorCode::InvalidParam);
         }
@@ -132,7 +127,6 @@ namespace radar::network {
             return Result<QJsonObject>::error("Invalid email or password", ErrorCode::AuthorizationFailed);
         }
 
-        // Reset failed attempts on success
         if (user.failedAttempts > 0) {
             if (auto res = m_userMapper->resetFailedAttempts(user.id); !res.isOk()) {
                 LOG_ERROR("Database", "resetFailedAttempts failed: " + res.errorMessage());
@@ -160,7 +154,7 @@ namespace radar::network {
             return Result<void>::error("Incorrect verification code", ErrorCode::InvalidParam);
         }
 
-        QRegularExpression pwdRegex("^(?=.*[a-zA-Z])(?=.*\\d).{8,16}$");
+        static const QRegularExpression pwdRegex("^(?=.*[a-zA-Z])(?=.*\\d).{8,16}$");
         if (!pwdRegex.match(newPassword).hasMatch()) {
             return Result<void>::error("Password must be 8-16 characters and contain letters and numbers", ErrorCode::InvalidParam);
         }

@@ -1,12 +1,10 @@
 #ifndef AUDIO_RECORD_CONTROLLER_H
 #define AUDIO_RECORD_CONTROLLER_H
 
-#include <memory>
 #include "../service/AudioRecordService.h"
 #include "../NetworkDTO.h"
 #include "AuthController.h"
 #include "AdminController.h"
-#include "../mapper/UserMapper.h"
 #include "../utils/SmtpClient.h"
 
 namespace radar::network {

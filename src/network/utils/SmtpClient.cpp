@@ -1,9 +1,8 @@
-#include "SmtpClient.h"
 #include <curl/curl.h>
-#include <cstring>
 #include <QtGlobal>
 #include <QDateTime>
 #include <QUuid>
+#include "SmtpClient.h"
 #include "../../core/Logger.h"
 
 namespace radar::network {
@@ -13,16 +12,14 @@ namespace radar::network {
         size_t bytesLeft;
     };
 
-    static int curlDebugCallback(CURL* handle, curl_infotype type, char* data, size_t size, void* userp) {
-        (void)handle;
-        (void)userp;
+    static int curlDebugCallback([[maybe_unused]] CURL* handle, curl_infotype type, const char* data, size_t size, [[maybe_unused]] void* userp) {
         if (type == CURLINFO_TEXT || type == CURLINFO_HEADER_IN) {
-            std::string text(data, size);
-            while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
-                text.pop_back();
+            QString text = QString::fromUtf8(data, size);
+            while (!text.isEmpty() && (text.endsWith(QLatin1Char('\n')) || text.endsWith(QLatin1Char('\r')))) {
+                text.chop(1);
             }
-            if (!text.empty()) {
-                LOG_INFO("SmtpClient", QString("CURL: ") + QString::fromStdString(text));
+            if (!text.isEmpty()) {
+                LOG_INFO("SmtpClient", QStringLiteral("CURL: ") + text);
             }
         }
         return 0;

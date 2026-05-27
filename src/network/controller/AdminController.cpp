@@ -1,8 +1,6 @@
 #include "AdminController.h"
 #include "../NetworkResponse.h"
 #include "../utils/AuthMiddleware.h"
-#include <QJsonDocument>
-#include <QJsonArray>
 
 namespace radar::network {
 
@@ -10,7 +8,7 @@ namespace radar::network {
         : QObject(parent), m_adminService(std::move(adminService)), m_authService(std::move(authService)) {}
 
     void AdminController::setupRoutes(QHttpServer& httpServer, const QString& jwtSecret,
-                                      std::shared_ptr<UserMapper> userMapper) const {
+                                      const std::shared_ptr<UserMapper>& userMapper) const {
         httpServer.route("/admin/users", QHttpServerRequest::Method::Post,
             AuthMiddleware::wrap(AuthLevel::Admin, jwtSecret, [this](const QHttpServerRequest& req) {
                 return handleCreateAdmin(req);

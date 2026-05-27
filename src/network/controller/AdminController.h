@@ -1,11 +1,9 @@
 #ifndef ADMIN_CONTROLLER_H
 #define ADMIN_CONTROLLER_H
 
-#include <memory>
 #include <QHttpServer>
 #include "../service/AdminService.h"
 #include "../service/AuthService.h"
-#include "../mapper/UserMapper.h"
 
 namespace radar::network {
     class AdminController : public QObject {
@@ -16,7 +14,7 @@ namespace radar::network {
         ~AdminController() override = default;
 
         void setupRoutes(QHttpServer& httpServer, const QString& jwtSecret,
-                         std::shared_ptr<UserMapper> userMapper) const;
+                         const std::shared_ptr<UserMapper>& userMapper) const;
 
     private:
         std::shared_ptr<AdminService> m_adminService;
@@ -28,4 +26,4 @@ namespace radar::network {
     };
 }
 
-#endif // ADMIN_CONTROLLER_H
+#endif

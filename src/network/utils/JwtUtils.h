@@ -1,9 +1,6 @@
 #ifndef JWT_UTILS_H
 #define JWT_UTILS_H
 
-#include <QString>
-#include <string>
-#include <chrono>
 #include <jwt-cpp/jwt.h>
 #include "../../core/Types.h"
 

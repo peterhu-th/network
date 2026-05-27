@@ -1,8 +1,6 @@
 #ifndef FILE_INDEXER_H
 #define FILE_INDEXER_H
 
-#include <QObject>
-#include <QString>
 #include <QTimer>
 #include "../../core/Types.h"
 #include "../mapper/AudioRecordMapper.h"
@@ -14,7 +12,7 @@ namespace radar::network {
 
     public:
         explicit FileIndexer(AudioRecordMapper* dbManager, QObject* parent = nullptr);
-        Result<void> start(const QString& rootPath, int intervalMs = 60000);    // 每 10 分钟查询一次
+        Result<void> start(const QString& rootPath, int intervalMs = 60000);
         [[nodiscard]] Result<void> scan() const;
 
     private:
@@ -28,4 +26,5 @@ namespace radar::network {
         static Result<int> getAudioDuration(const QString &filePath);
     };
 }
+
 #endif

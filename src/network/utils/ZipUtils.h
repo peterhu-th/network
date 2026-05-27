@@ -1,7 +1,6 @@
 #ifndef ZIP_UTILS_H
 #define ZIP_UTILS_H
 
-#include <QString>
 #include <QFileInfo>
 #include <QDebug>
 #include "../../../third-party/miniz/miniz.h"
